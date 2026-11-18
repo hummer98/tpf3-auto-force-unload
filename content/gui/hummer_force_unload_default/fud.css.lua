@@ -10,7 +10,13 @@ function data()
 	local result = {}
 	local a = ssu.makeAdder(result)
 
+	-- as the base's R::LineCargoDisplay: fill the row height, so the cargo
+	-- card keeps its place inside our wrapper
+	a("R::LineStopItem !fud-stop-cargo-box", {
+		gravity = { 0, -1 },
+	})
 	a("R::LineStopItem !fud-stop-icon-slot", {
+		gravity = { 0, -1 },
 		size = { 16, -1 },
 		margin = { 0, 2, 0, 0 },
 	})

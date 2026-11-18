@@ -26,6 +26,11 @@
 -- wrapped after them, our box would hide their node. entry.res.lua (the mod
 -- entry point plugin, which renders nothing) loads the script again in case
 -- the config did not run; the guards make that a no-op.
+-- Known limit: the field then holds a plain function. A mod handing that
+-- field to ReplaceRecipe from a config with an order below -1000 (before
+-- our shim), or to CallOriginalRecipe / GetRecipeId at any time, would get
+-- our function instead of the recipe. No installed mod does (checked for
+-- build 40444).
 local react = ug_require "::/gui/main/react.lua"
 local builtin = ug_require "::/gui/main/builtin.lua"
 local mod_entry_point = ug_require "::/gui/main/mod_entry_point.tl"
@@ -113,12 +118,19 @@ local ForceUnloadStopIcon = react.RegisterRecipe("HummerForceUnloadStopIcon", fu
 	}
 end)
 
+-- A classed Component around the box: a bare BoxLayout takes no style, and
+-- the base stretches the cargo display to the row height
+-- (R::LineCargoDisplay gravity), which this wrapper must pass on
+-- (fud.css.lua).
 local function decorate(node, params)
-	return builtin.BoxLayout{
-		orientation = builtin.type.Orientation.Horizontal,
-		children = {
-			ForceUnloadStopIcon{ lineEntity = params.lineEntity, stopIndex = params.stopIndex },
-			node,
+	return builtin.Component{
+		meta = { class = "fud-stop-cargo-box" },
+		layout = builtin.BoxLayout{
+			orientation = builtin.type.Orientation.Horizontal,
+			children = {
+				ForceUnloadStopIcon{ lineEntity = params.lineEntity, stopIndex = params.stopIndex },
+				node,
+			},
 		},
 	}
 end
@@ -137,10 +149,7 @@ local function installIcon()
 		log("wrapping LineCargoDisplay failed: " .. tostring(result))
 		return false
 	end
-	if result then
-		log("line_react_util.LineCargoDisplay wrapped (stop marker)")
-	end
-	return result
+	return result and "new" or false
 end
 
 local function install()
@@ -157,10 +166,7 @@ local function install()
 		log("wrapping line_util failed: " .. tostring(result))
 		return false
 	end
-	if result then
-		log("line_util.autoLoadConfig wrapped")
-	end
-	return result
+	return result and "new" or false
 end
 
 local EntryPlugin = react.RegisterPluginRecipe(mod_entry_point.ModEntryPointExtension, "HummerForceUnloadDefaultEntry", function()
@@ -182,9 +188,15 @@ end
 -- Entry point of a .script.lua resource: the engine calls the global data()
 -- and ignores the chunk's return value (a trailing return {...} aborts the
 -- GUI bootstrap with "function data() not defined").
+-- One line per load that wraps something (the first of the two resources);
+-- the second load finds both guards set and stays quiet.
 function data()
-	install()
-	installIcon()
+	local auto = install()
+	local icon = installIcon()
+	if auto == "new" or icon == "new" then
+		log("wrapped: line_util.autoLoadConfig " .. (auto and "yes" or "NO")
+			.. ", line_react_util.LineCargoDisplay (stop marker) " .. (icon and "yes" or "NO"))
+	end
 	return {
 		EntryPlugin = EntryPlugin,
 		doReplace = doReplace,
