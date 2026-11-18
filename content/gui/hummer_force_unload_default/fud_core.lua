@@ -22,6 +22,11 @@ M.MODE_ALL = 1 -- every stop of the edited line
 M.MODE_NEW = 2 -- only stops made by makeNewStop in this edit
 M.DEFAULT_MODE = M.MODE_ALL
 
+-- Values of the "stop_icon" param (same indexing): the marker in the line
+-- manager's stop list. On unless the player switched it off.
+M.ICON_OFF = 1
+M.ICON_ON = 2
+
 -- Marker field on the line_util table: the GUI may load the entry script
 -- more than once, and a second wrap would run the post-processing twice and
 -- keep a stale closure in the chain.
@@ -35,6 +40,14 @@ function M.modeFromParams(all)
 	local v = type(mine) == "table" and mine.mode or nil
 	if v == M.MODE_NEW then return M.MODE_NEW end
 	return M.DEFAULT_MODE
+end
+
+-- Whether the stop list marker is shown. Unreadable or unknown -> shown
+-- (the default in mod.json).
+function M.iconFromParams(all)
+	local mine = type(all) == "table" and all[M.MOD_ID] or nil
+	local v = type(mine) == "table" and mine.stop_icon or nil
+	return v ~= M.ICON_OFF
 end
 
 -- true when the load list has at least one cargo type (passengers count)
@@ -186,6 +199,111 @@ function M.install(line_util, deps)
 	end
 
 	line_util[M.GUARD_KEY] = true
+	return true
+end
+
+------------------------------------------------------------------------
+-- Stop list marker
+------------------------------------------------------------------------
+-- The stop rows of the line manager (LineStopItem, a file-local recipe of
+-- gui/line_vehicle_mgmt/line_manager_panel.tl, so it cannot be replaced from
+-- outside) render the stop name and right after it
+-- line_react_util.LineCargoDisplay{ lineEntity, stopIndex,
+-- stopCargoDisplay = true, ... }. That is the only caller passing
+-- stopCargoDisplay (the line rows and the vehicle rows show the whole
+-- line's cargo). The module field is looked up per call, so wrapping it
+-- puts the marker between the name and the cargo icons without replacing
+-- any recipe: the base node is built by the previous function with its own
+-- params, untouched, and other wrappers of the field stay in the chain.
+
+M.ICON_GUARD_KEY = "__hummer_force_unload_default_icon"
+
+-- Recipes and builtins can be called as X{params} or X(ref, {params}); the
+-- params table is the last argument.
+local function lastArg(...)
+	local n = select("#", ...)
+	if n == 0 then return nil end
+	return (select(n, ...))
+end
+M.lastArg = lastArg
+
+-- The params of a stop row's cargo display, or nil for any other call.
+function M.stopRowParams(...)
+	local p = lastArg(...)
+	if type(p) ~= "table" or p.stopCargoDisplay ~= true then return nil end
+	if p.lineEntity == nil or type(p.stopIndex) ~= "number" then return nil end
+	return p
+end
+
+-- Reads stopConfig.forceUnload of the stop at the 0-based API index of a
+-- line (engine.d.tl Line.stops; the stop row passes params.stopIndex, which
+-- the base also hands to the cargo filter window as apiStopIndex0).
+-- getComponent(entity, type) -> component or nil. false when anything is
+-- missing.
+function M.readForceUnload(getComponent, lineEntity, stopIndex)
+	if lineEntity == nil or type(stopIndex) ~= "number" then return false end
+	local line = getComponent(lineEntity)
+	if line == nil then return false end
+	local stops = line.stops
+	if stops == nil then return false end
+	local stop = stops[stopIndex + 1]
+	local cfg = stop and stop.stopConfig
+	return cfg ~= nil and cfg.forceUnload == true
+end
+
+-- Wraps line_react_util.LineCargoDisplay once. deps: enabled() -> boolean
+-- (the param), decorate(node, params) -> node with the marker, log(msg).
+-- A failing decorate returns the base node, logged once.
+function M.installIcon(line_react_util, deps)
+	deps = deps or {}
+	local log = deps.log or function() end
+	if type(line_react_util) ~= "table" then
+		log("line_react_util unavailable (" .. type(line_react_util) .. "); no stop marker")
+		return false
+	end
+	if line_react_util[M.ICON_GUARD_KEY] then return true end
+	local prev = line_react_util.LineCargoDisplay
+	if prev == nil then
+		log("line_react_util.LineCargoDisplay missing; no stop marker")
+		return false
+	end
+	local failed = false
+	line_react_util.LineCargoDisplay = function(...)
+		local node = prev(...)
+		local params = M.stopRowParams(...)
+		if params == nil then return node end
+		local ok, result = pcall(function()
+			if deps.enabled and not deps.enabled() then return node end
+			return deps.decorate(node, params)
+		end)
+		if ok and result ~= nil then return result end
+		if not ok and not failed then
+			failed = true
+			log("stop marker failed: " .. tostring(result) .. " (further failures not logged)")
+		end
+		return node
+	end
+	-- prev / wrapper are kept for shimReplacementApi
+	line_react_util[M.ICON_GUARD_KEY] = { prev = prev, wrapper = line_react_util.LineCargoDisplay }
+	return true
+end
+
+-- The field now holds a plain function, not the registered recipe. A mod
+-- whose replacement config runs later and calls
+-- ReplaceRecipe(line_react_util.LineCargoDisplay, x) would hand the engine
+-- that function; map it back to the recipe it wraps (as other mods that
+-- wrap recipe fields do). No-op when the api has no ReplaceRecipe.
+function M.shimReplacementApi(replacementApi, line_react_util)
+	if type(replacementApi) ~= "table" or type(line_react_util) ~= "table" then return false end
+	local state = line_react_util[M.ICON_GUARD_KEY]
+	local replace = replacementApi.ReplaceRecipe
+	if type(state) ~= "table" or type(replace) ~= "function" then return false end
+	if replacementApi[M.ICON_GUARD_KEY] then return true end
+	replacementApi.ReplaceRecipe = function(original, ...)
+		if original == state.wrapper then original = state.prev end
+		return replace(original, ...)
+	end
+	replacementApi[M.ICON_GUARD_KEY] = true
 	return true
 end
 

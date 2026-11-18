@@ -422,48 +422,106 @@ end)
 ------------------------------------------------------------------------
 -- fud.script.lua under stubs
 ------------------------------------------------------------------------
+-- A line_react_util stand-in: LineCargoDisplay returns a recognisable node
+-- and counts its calls.
+local function fakeLineReactUtil()
+	local lru = { cargoCalls = 0 }
+	lru.LineCargoDisplay = function(...)
+		lru.cargoCalls = lru.cargoCalls + 1
+		local n = select("#", ...)
+		return { base = true, params = (select(n, ...)), argc = n }
+	end
+	return lru
+end
+
 local function loadScript(env)
 	local logs = {}
 	local lineUtil = env.lineUtil
-	local registered = 0
+	local lineReactUtil = env.lineReactUtil or fakeLineReactUtil()
+	local recipes = {}
 	local G = setmetatable({
 		debugPrint = function(m) logs[#logs + 1] = m end,
+		_ = env.translate,
 		ug_require = function(path)
 			if path == "::/gui/line_vehicle_mgmt/line_util.tl" then
 				if env.requireError then error(env.requireError) end
 				return lineUtil
+			elseif path == "::/gui/line_vehicle_mgmt/line_react_util.tl" then
+				if env.reactRequireError then error(env.reactRequireError) end
+				return lineReactUtil
 			elseif path == "::/gui/main/react.lua" then
-				return { RegisterPluginRecipe = function(ep, name, fn)
-					registered = registered + 1
-					assert(ep == "EP", "extension point from mod_entry_point")
-					return { name = name, fn = fn }
-				end }
+				return {
+					RegisterPluginRecipe = function(ep, name, fn)
+						assert(ep == "EP", "extension point from mod_entry_point")
+						return { name = name, fn = fn }
+					end,
+					-- a recipe call returns a node that remembers its params;
+					-- render(node) runs the recipe function on them
+					RegisterRecipe = function(name, fn)
+						recipes[name] = fn
+						return function(p) return { recipe = name, params = p } end
+					end,
+				}
 			elseif path == "::/gui/main/builtin.lua" then
-				return { BoxLayout = function(p) return p end }
+				local function widget(kind) return function(p) p = p or {}; p.kind = kind; return p end end
+				return {
+					BoxLayout = widget("BoxLayout"), Component = widget("Component"),
+					FloatingLayout = widget("FloatingLayout"), FloatingLayoutChild = widget("FloatingLayoutChild"),
+					ImageView = widget("ImageView"),
+					type = { Orientation = { Horizontal = "H" }, ImageViewScaling = { AutoFit = "fit" } },
+				}
 			elseif path == "::/gui/main/mod_entry_point.tl" then
 				return { ModEntryPointExtension = "EP" }
+			elseif path == "::/gui/main/engine_react_util.tl" then
+				return { useStepStateTimer = function(fn, interval)
+					local v = fn()
+					return { old = function() return v end, interval = interval }
+				end }
 			end
 			error("unexpected ug_require " .. tostring(path))
 		end,
-		api = { engine = { config = { getModParams = env.getModParams } } },
+		api = {
+			engine = {
+				config = { getModParams = env.getModParams },
+				entityExists = function(e) return env.lines ~= nil and env.lines[e] ~= nil end,
+				getComponent = function(e, t)
+					assert(t == "LINE", "reads the LINE component")
+					return env.lines[e]
+				end,
+			},
+			type = { ComponentType = { LINE = "LINE" } },
+		},
 	}, { __index = _G })
 	local chunk = assert(loadfile(root .. "/content/gui/hummer_force_unload_default/fud.script.lua"))
 	setfenv(chunk, G)
 	chunk()
 	local exports = G.data()
-	return exports, logs, G, function() return registered end
+	local function render(node)
+		return recipes[node.recipe](node.params)
+	end
+	return exports, logs, G, render, lineReactUtil
+end
+
+local function successLogs(logs)
+	local n = 0
+	for _, m in ipairs(logs) do if m:find("wrapped", 1, true) then n = n + 1 end end
+	return n
 end
 
 test("script: data() wraps line_util once, logs one success line", function()
 	local lu = fakeLineUtil()
-	local exports, logs = loadScript({ lineUtil = lu, getModParams = function() return {} end })
+	local lru = fakeLineReactUtil()
+	local exports, logs = loadScript({ lineUtil = lu, lineReactUtil = lru, getModParams = function() return {} end })
 	assert(exports.EntryPlugin and exports.EntryPlugin.name == "HummerForceUnloadDefaultEntry")
-	eq(#logs, 1)
+	eq(#logs, 2)
 	assert(logs[1]:find("^%[FUD%] line_util.autoLoadConfig wrapped"), logs[1])
+	assert(logs[2]:find("^%[FUD%] line_react_util.LineCargoDisplay wrapped"), logs[2])
 	local wrapped = lu.autoLoadConfig
-	-- the script loaded a second time (another chunk, same cached table)
-	local _, logs2 = loadScript({ lineUtil = lu, getModParams = function() return {} end })
+	local wrappedCargo = lru.LineCargoDisplay
+	-- the script loaded a second time (another chunk, same cached tables)
+	local _, logs2 = loadScript({ lineUtil = lu, lineReactUtil = lru, getModParams = function() return {} end })
 	eq(lu.autoLoadConfig, wrapped, "not wrapped again")
+	eq(lru.LineCargoDisplay, wrappedCargo, "marker not wrapped again")
 	eq(#logs2, 0)
 	lu.autoLoadConfig({ path = {} })
 	eq(lu.calls, 1)
@@ -500,8 +558,9 @@ end)
 test("script: line_util cannot be loaded -> failure logged, nothing thrown", function()
 	local exports, logs = loadScript({ requireError = "no such file", getModParams = function() return {} end })
 	assert(exports.EntryPlugin)
-	eq(#logs, 1)
+	eq(#logs, 2)
 	assert(logs[1]:find("^%[FUD%] line_util could not be loaded"), logs[1])
+	assert(logs[2]:find("LineCargoDisplay wrapped", 1, true), "the marker is independent of the line_util wrap")
 end)
 
 test("script: the plugin renders an empty layout", function()
@@ -509,6 +568,371 @@ test("script: the plugin renders an empty layout", function()
 	local exports = loadScript({ lineUtil = lu, getModParams = function() return {} end })
 	local node = exports.EntryPlugin.fn()
 	eq(#node.children, 0)
+end)
+
+------------------------------------------------------------------------
+-- stop list marker: core
+------------------------------------------------------------------------
+test("iconFromParams: off only for value 1; default and unknown -> on", function()
+	eq(core.iconFromParams({ hummer_force_unload_default = { stop_icon = 1 } }), false)
+	eq(core.iconFromParams({ hummer_force_unload_default = { stop_icon = 2 } }), true)
+	eq(core.iconFromParams({ hummer_force_unload_default = {} }), true)
+	eq(core.iconFromParams({}), true)
+	eq(core.iconFromParams(nil), true)
+end)
+
+test("mod.json: stop_icon param defaults to its second value (On)", function()
+	local f = assert(io.open(root .. "/mod.json"))
+	local s = f:read("*a"); f:close()
+	local block = s:match('"key": "stop_icon".-}')
+	assert(block, "stop_icon param missing")
+	assert(block:find('"defaultIndex": 1', 1, true), "defaultIndex 1 expected")
+	local off = block:find("hummer_force_unload_default_off", 1, true)
+	local on = block:find("hummer_force_unload_default_on", 1, true)
+	assert(off and on and off < on, "values order: off, on")
+end)
+
+test("strings.json: marker keys in en and ja", function()
+	local f = assert(io.open(root .. "/strings.json"))
+	local s = f:read("*a"); f:close()
+	for _, lang in ipairs({ "en", "ja" }) do
+		local block = s:match('"' .. lang .. '"%s*:%s*(%b{})')
+		for _, key in ipairs({ "hummer_force_unload_default_icon_name", "hummer_force_unload_default_icon_param_tip",
+			"hummer_force_unload_default_off", "hummer_force_unload_default_on", "hummer_force_unload_default_icon_tip" }) do
+			assert(block:find('"' .. key .. '"', 1, true), lang .. ": " .. key .. " missing")
+		end
+	end
+end)
+
+test("stopRowParams: only stop rows (stopCargoDisplay + line + index)", function()
+	local p = { stopCargoDisplay = true, lineEntity = 5, stopIndex = 0 }
+	eq(core.stopRowParams(p), p)
+	eq(core.stopRowParams("ref", p), p, "X(ref, params) form")
+	eq(core.stopRowParams({ lineEntity = 5 }), nil, "line row (whole line)")
+	eq(core.stopRowParams({ stopCargoDisplay = false, lineEntity = 5, stopIndex = 0 }), nil)
+	eq(core.stopRowParams({ stopCargoDisplay = true, stopIndex = 0 }), nil, "no line")
+	eq(core.stopRowParams({ stopCargoDisplay = true, lineEntity = 5 }), nil, "no stop index")
+	eq(core.stopRowParams(), nil)
+	eq(core.stopRowParams(nil), nil)
+end)
+
+local function lineWith(...)
+	local stops = {}
+	for i, v in ipairs({ ... }) do stops[i] = { stopConfig = { forceUnload = v } } end
+	return { stops = stops }
+end
+
+test("readForceUnload: 0-based stop index into the line's stops", function()
+	local lines = { [7] = lineWith(false, true) }
+	local get = function(e) return lines[e] end
+	eq(core.readForceUnload(get, 7, 0), false)
+	eq(core.readForceUnload(get, 7, 1), true)
+	eq(core.readForceUnload(get, 7, 2), false, "past the end")
+	eq(core.readForceUnload(get, 8, 0), false, "no such line")
+	eq(core.readForceUnload(get, nil, 0), false)
+	eq(core.readForceUnload(get, 7, nil), false)
+	eq(core.readForceUnload(function() return {} end, 7, 0), false, "no stops")
+	eq(core.readForceUnload(function() return { stops = { {} } } end, 7, 0), false, "no stopConfig")
+end)
+
+local function iconDeps(over)
+	local d = { decorated = 0, logs = {} }
+	d.enabled = function() return over.enabled ~= false end
+	d.decorate = over.decorate or function(node, params)
+		d.decorated = d.decorated + 1
+		return { wrapped = node, params = params }
+	end
+	d.log = function(m) d.logs[#d.logs + 1] = m end
+	return d
+end
+
+test("installIcon: stop rows get decorated, the base is called once with the same args", function()
+	local lru = fakeLineReactUtil()
+	local d = iconDeps({})
+	eq(core.installIcon(lru, d), true)
+	local p = { stopCargoDisplay = true, lineEntity = 5, stopIndex = 2, configureStopButton = true }
+	local r = lru.LineCargoDisplay(p)
+	eq(lru.cargoCalls, 1)
+	eq(r.wrapped.base, true)
+	eq(r.wrapped.params, p, "base got the params table untouched")
+	eq(r.params, p)
+	eq(d.decorated, 1)
+end)
+
+test("installIcon: line rows and other calls pass through unchanged", function()
+	local lru = fakeLineReactUtil()
+	local d = iconDeps({})
+	core.installIcon(lru, d)
+	local r = lru.LineCargoDisplay({ lineEntity = 5, neutralBackground = false })
+	eq(r.base, true)
+	r = lru.LineCargoDisplay("ref", { lineEntity = 5 })
+	eq(r.base, true); eq(r.argc, 2, "all arguments passed on")
+	eq(d.decorated, 0)
+end)
+
+test("installIcon: marker switched off -> base node only", function()
+	local lru = fakeLineReactUtil()
+	local d = iconDeps({ enabled = false })
+	core.installIcon(lru, d)
+	local r = lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 5, stopIndex = 0 })
+	eq(r.base, true)
+	eq(d.decorated, 0)
+	eq(lru.cargoCalls, 1)
+end)
+
+test("installIcon: a failing decorate shows the base node, logged once", function()
+	local lru = fakeLineReactUtil()
+	local d = iconDeps({ decorate = function() error("boom") end })
+	core.installIcon(lru, d)
+	local p = { stopCargoDisplay = true, lineEntity = 5, stopIndex = 0 }
+	eq(lru.LineCargoDisplay(p).base, true)
+	eq(lru.LineCargoDisplay(p).base, true)
+	eq(#d.logs, 1)
+	assert(d.logs[1]:find("stop marker failed"), d.logs[1])
+end)
+
+test("installIcon: an error in the base propagates, nothing decorated", function()
+	local lru = fakeLineReactUtil()
+	lru.LineCargoDisplay = function() error("base failure", 0) end
+	local d = iconDeps({})
+	core.installIcon(lru, d)
+	local ok, err = pcall(lru.LineCargoDisplay, { stopCargoDisplay = true, lineEntity = 5, stopIndex = 0 })
+	eq(ok, false); eq(err, "base failure")
+	eq(d.decorated, 0)
+end)
+
+test("installIcon twice: wrapped once; missing field / table -> false + log", function()
+	local lru = fakeLineReactUtil()
+	core.installIcon(lru, iconDeps({}))
+	local w = lru.LineCargoDisplay
+	eq(core.installIcon(lru, iconDeps({})), true)
+	eq(lru.LineCargoDisplay, w)
+	lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 5, stopIndex = 0 })
+	eq(lru.cargoCalls, 1)
+	local d = iconDeps({})
+	eq(core.installIcon({}, d), false)
+	eq(core.installIcon(nil, d), false)
+	eq(#d.logs, 2)
+end)
+
+test("installIcon keeps another mod's earlier wrapper in the chain", function()
+	local lru = fakeLineReactUtil()
+	local base = lru.LineCargoDisplay
+	local other = 0
+	lru.LineCargoDisplay = function(...) other = other + 1; return base(...) end
+	core.installIcon(lru, iconDeps({}))
+	local r = lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 5, stopIndex = 0 })
+	eq(other, 1)
+	eq(r.wrapped.base, true)
+end)
+
+------------------------------------------------------------------------
+-- stop list marker: script under stubs
+------------------------------------------------------------------------
+local STOP = { stopCargoDisplay = true, lineEntity = 7, stopIndex = 1, configureStopButton = true }
+
+local function rowEnv(over)
+	local env = { lineUtil = fakeLineUtil(), lines = { [7] = lineWith(false, true) },
+		getModParams = function() return {} end }
+	for k, v in pairs(over or {}) do env[k] = v end
+	return env
+end
+
+test("script marker: stop row -> horizontal box {marker, base node}", function()
+	local _, _, _, render, lru = loadScript(rowEnv())
+	local row = lru.LineCargoDisplay(STOP)
+	eq(row.kind, "BoxLayout")
+	eq(row.orientation, "H")
+	eq(#row.children, 2)
+	eq(row.children[1].recipe, "HummerForceUnloadStopIcon")
+	eq(row.children[1].params.lineEntity, 7)
+	eq(row.children[1].params.stopIndex, 1)
+	eq(row.children[2].base, true, "base node second, i.e. the marker is right after the name")
+	eq(row.children[2].params, STOP)
+end)
+
+test("script marker: forceUnload on -> icon with path and tooltip", function()
+	local translate = function(k) if k == "hummer_force_unload_default_icon_tip" then return "TIP" end return k end
+	local _, _, _, render, lru = loadScript(rowEnv({ translate = translate }))
+	local icon = render(lru.LineCargoDisplay(STOP).children[1])
+	eq(icon.meta.class, "fud-stop-icon-slot")
+	local child = icon.layout.children[1]
+	assert(child, "icon expected")
+	eq(child.item.kind, "ImageView")
+	eq(child.item.path, "::/gui/line_vehicle_mgmt/icons/symbol_cargo_arrow_up_send.tga")
+	eq(child.item.meta.tooltip, "TIP")
+end)
+
+test("script marker: forceUnload off -> empty slot (keeps the column)", function()
+	local _, _, _, render, lru = loadScript(rowEnv())
+	local p = { stopCargoDisplay = true, lineEntity = 7, stopIndex = 0 }
+	local icon = render(lru.LineCargoDisplay(p).children[1])
+	eq(icon.meta.class, "fud-stop-icon-slot")
+	eq(icon.layout.children[1], nil)
+end)
+
+test("script marker: missing line / stop -> empty slot, no error", function()
+	local _, logs, _, render, lru = loadScript(rowEnv())
+	local icon = render(lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 99, stopIndex = 0 }).children[1])
+	eq(icon.layout.children[1], nil)
+	icon = render(lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7, stopIndex = 9 }).children[1])
+	eq(icon.layout.children[1], nil)
+	eq(successLogs(logs), #logs, "only the load-time lines")
+end)
+
+test("script marker: a waypoint row (no LineCargoDisplay with a stop index) gets nothing", function()
+	local _, _, _, _, lru = loadScript(rowEnv())
+	-- LineStopItem does not call LineCargoDisplay for waypoints; a call
+	-- without stopIndex must not be decorated either
+	local r = lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7 })
+	eq(r.base, true)
+end)
+
+test("script marker: shown on customFilters lines too (display only reads)", function()
+	local lines = { [7] = lineWith(true) }
+	lines[7].customFilters = true
+	local _, _, _, render, lru = loadScript(rowEnv({ lines = lines }))
+	local icon = render(lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7, stopIndex = 0 }).children[1])
+	assert(icon.layout.children[1], "icon expected")
+end)
+
+test("script marker: switched off in the mod settings -> base node only", function()
+	local _, _, _, _, lru = loadScript(rowEnv({ getModParams = function()
+		return { hummer_force_unload_default = { stop_icon = 1 } } end }))
+	local r = lru.LineCargoDisplay(STOP)
+	eq(r.base, true)
+end)
+
+test("script marker: params unreadable -> shown (default), read again later", function()
+	local readable = false
+	local _, _, _, _, lru = loadScript(rowEnv({ getModParams = function()
+		if not readable then error("restricted") end
+		return { hummer_force_unload_default = { stop_icon = 1 } } end }))
+	eq(lru.LineCargoDisplay(STOP).kind, "BoxLayout")
+	readable = true
+	eq(lru.LineCargoDisplay(STOP).base, true, "the real value once readable")
+end)
+
+test("script marker: tooltip falls back to English when _ is missing or returns the key", function()
+	for _, tr in ipairs({ false, function(k) return k end }) do
+		local _, _, _, render, lru = loadScript(rowEnv({ translate = tr or nil }))
+		local icon = render(lru.LineCargoDisplay(STOP).children[1])
+		assert(icon.layout.children[1].item.meta.tooltip:find("^Force Unload All Cargo On Arrival: On"))
+	end
+end)
+
+test("script marker: line_react_util cannot be loaded -> logged, autoLoadConfig still wrapped", function()
+	local env = rowEnv({ reactRequireError = "missing" })
+	local _, logs = loadScript(env)
+	local found = false
+	for _, m in ipairs(logs) do if m:find("line_react_util could not be loaded", 1, true) then found = true end end
+	assert(found, "failure logged")
+	assert(env.lineUtil[core.GUARD_KEY], "line_util wrapped anyway")
+end)
+
+------------------------------------------------------------------------
+-- replacement config, ReplaceRecipe shim, other mods in the chain
+------------------------------------------------------------------------
+test("shimReplacementApi: ReplaceRecipe(our wrapper) reaches the wrapped recipe", function()
+	local lru = fakeLineReactUtil()
+	local recipe = lru.LineCargoDisplay
+	core.installIcon(lru, iconDeps({}))
+	local got = {}
+	local api = { ReplaceRecipe = function(original, repl) got[#got + 1] = { original, repl } end }
+	eq(core.shimReplacementApi(api, lru), true)
+	api.ReplaceRecipe(lru.LineCargoDisplay, "X")
+	eq(got[1][1], recipe, "mapped to the recipe")
+	eq(got[1][2], "X")
+	api.ReplaceRecipe("other", "Y")
+	eq(got[2][1], "other", "other recipes untouched")
+	-- shimming twice wraps once
+	local shimmed = api.ReplaceRecipe
+	eq(core.shimReplacementApi(api, lru), true)
+	eq(api.ReplaceRecipe, shimmed)
+end)
+
+test("shimReplacementApi: no-op without our wrap or without ReplaceRecipe", function()
+	eq(core.shimReplacementApi({ ReplaceRecipe = function() end }, fakeLineReactUtil()), false)
+	local lru = fakeLineReactUtil()
+	core.installIcon(lru, iconDeps({}))
+	eq(core.shimReplacementApi({}, lru), false)
+	eq(core.shimReplacementApi(nil, lru), false)
+end)
+
+test("script: doReplace exported and shims the api the game hands it", function()
+	local exports, _, _, _, lru = loadScript(rowEnv())
+	local seen
+	local api = { ReplaceRecipe = function(original) seen = original end }
+	exports.doReplace(api)
+	api.ReplaceRecipe(lru.LineCargoDisplay, "X")
+	assert(seen ~= lru.LineCargoDisplay, "our wrapper is not handed to the engine")
+	exports.doReplace(nil) -- tolerated
+end)
+
+test("replace.res.lua: an early react-replacement-config pointing at doReplace", function()
+	local chunk = assert(loadfile(root .. "/content/gui/hummer_force_unload_default/replace.res.lua"))
+	local env = {}
+	setfenv(chunk, env); chunk()
+	local r = env.data()
+	eq(r.type, "react-replacement-config")
+	eq(r.data.filePath, "hummer_force_unload_default::/gui/hummer_force_unload_default/fud.script")
+	eq(r.data.doReplaceFn, "doReplace")
+	assert(r.data.order < 0, "runs before configs with the default order")
+end)
+
+test("entry.res.lua: mod entry point plugin pointing at EntryPlugin", function()
+	local chunk = assert(loadfile(root .. "/content/gui/hummer_force_unload_default/entry.res.lua"))
+	local env = {}
+	setfenv(chunk, env); chunk()
+	local r = env.data()
+	eq(r.type, "react-plugin ::ModEntryPointExtension")
+	eq(r.data.filePath, "hummer_force_unload_default::/gui/hummer_force_unload_default/fud.script@EntryPlugin")
+end)
+
+-- A mod that wraps LineCargoDisplay later and then, in its own wrap of
+-- builtin.BoxLayout, looks for the node it got among the stop row's
+-- children to put something right after it (the pattern of a waiting
+-- passengers mod). Installed after ours (its config order is higher), it
+-- must still find its node in the row, and our marker must stay.
+test("chain: a later wrapper that looks up its node in the row still finds it", function()
+	local _, _, G, _, lru = loadScript(rowEnv())
+	local builtin = G.ug_require("::/gui/main/builtin.lua")
+	local prevCargo, pending, inserted = lru.LineCargoDisplay, nil, false
+	lru.LineCargoDisplay = function(...)
+		local node = prevCargo(...)
+		pending = node
+		return node
+	end
+	local function row(cargoNode)
+		-- what LineStopItem builds: name, cargo display, spacer
+		local children = { "name", cargoNode, "spacer" }
+		for i, c in ipairs(children) do
+			if pending and c == pending then
+				table.insert(children, i + 1, "waiting")
+				inserted = true
+				break
+			end
+		end
+		return builtin.BoxLayout{ children = children }
+	end
+	local r = row(lru.LineCargoDisplay(STOP))
+	assert(inserted, "the other mod found its node in the row")
+	eq(r.children[2].children[1].recipe, "HummerForceUnloadStopIcon", "our marker kept")
+	eq(r.children[3], "waiting")
+end)
+
+test("chain: Reverse-Lines-style observer outside ours sees the args unchanged", function()
+	local _, _, _, _, lru = loadScript(rowEnv())
+	local prev, seenParams = lru.LineCargoDisplay, nil
+	lru.LineCargoDisplay = function(...)
+		local n = select("#", ...)
+		seenParams = select(n, ...)
+		return prev(...)
+	end
+	local lineRow = { lineEntity = 7 }
+	eq(lru.LineCargoDisplay(lineRow).base, true)
+	eq(seenParams, lineRow)
+	eq(lru.LineCargoDisplay(STOP).kind, "BoxLayout")
 end)
 
 print(string.format("\n%d passed, %d failed", passes, failures))

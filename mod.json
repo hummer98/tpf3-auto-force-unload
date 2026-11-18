@@ -8,9 +8,15 @@
 	"dependencies": null,
 	"incompatibilities": null,
 	"options": null,
-	"preRunScript": { "fileName": "" },
-	"runScript": { "fileName": "" },
-	"postRunScript": { "fileName": "" },
+	"preRunScript": {
+		"fileName": ""
+	},
+	"runScript": {
+		"fileName": ""
+	},
+	"postRunScript": {
+		"fileName": ""
+	},
 	"params": [
 		{
 			"key": "mode",
@@ -22,6 +28,17 @@
 				"hummer_force_unload_default_mode_new"
 			],
 			"defaultIndex": 0
+		},
+		{
+			"key": "stop_icon",
+			"name": "hummer_force_unload_default_icon_name",
+			"tooltip": "hummer_force_unload_default_icon_param_tip",
+			"uiType": "Button",
+			"values": [
+				"hummer_force_unload_default_off",
+				"hummer_force_unload_default_on"
+			],
+			"defaultIndex": 1
 		}
 	]
 }
