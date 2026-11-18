@@ -248,11 +248,18 @@ end
 -- 1-based slot of passengers in a stop's load list (the base's IdVector is
 -- cargo id + 1); nil when cargo_util cannot be read, which counts passengers
 -- as cargo (the stop then stays off: the safe side).
+-- Logged once: in that case the rule falls back to counting passengers,
+-- so cargo unload stops stay off, and the log is where to see why.
+local passengerWarned = false
 local function passengerIndex()
 	local ok, id = pcall(function()
 		return ug_require("::/gui/main/cargo_util.tl").getPassengerCargoTypeId()
 	end)
 	if ok and type(id) == "number" then return id + 1 end
+	if not passengerWarned then
+		passengerWarned = true
+		log("passenger cargo type unreadable (" .. tostring(id) .. "); passengers count as cargo, unload stops stay off")
+	end
 	return nil
 end
 

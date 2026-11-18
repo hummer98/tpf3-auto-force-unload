@@ -179,8 +179,9 @@ local function pack(...)
 end
 
 -- Wraps line_util.autoLoadConfig (and makeNewStop, for MODE_NEW) once.
--- deps: getMode() -> mode, log(msg) for failures, marks (optional weak
--- table; a fresh one by default). Returns true when autoLoadConfig is
+-- deps: getMode() -> mode, log(msg) for failures, passengerIndex() -> the
+-- passenger slot or nil (see hasCargoLoad), marks (optional weak table; a
+-- fresh one by default). Returns true when autoLoadConfig is
 -- wrapped (now or by an earlier load).
 function M.install(line_util, deps)
 	deps = deps or {}

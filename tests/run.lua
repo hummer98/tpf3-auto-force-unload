@@ -153,10 +153,11 @@ test("all: load all false on a line that carries cargo -> forceUnload true", fun
 	eq(fu(line.path[2]), true)
 end)
 
-test("all: passengers-only load -> forceUnload false", function()
-	local line = { path = { via(load(1), true) } }
-	core.apply(line, core.MODE_ALL)
-	eq(fu(line.path[1]), false)
+test("all: passengers-only stop with the passenger slot unknown counts as loading -> off", function()
+	-- on a cargo line, so only the passenger counting keeps it off
+	local line = { path = { via(load(2), true), via(load(1), true) } }
+	core.apply(line, core.MODE_ALL, nil, nil)
+	eq(fu(line.path[2]), false)
 end)
 
 test("all: mixed line -> loading stop off, unload-only stop on", function()
@@ -222,8 +223,8 @@ test("new: no stop marked -> nothing changes", function()
 end)
 
 test("new: a line growing from its single first stop sets that stop again", function()
-	-- the first stop was decided alone (loads nothing -> on); with the
-	-- second stop it loads, so it must turn off
+	-- the first stop was on (e.g. set before); it loads once the second
+	-- stop is added, so it must turn off
 	local first, n = via(load(3), true), via(load(), false)
 	core.apply({ path = { first, n } }, core.MODE_NEW, function(v) return v == n end)
 	eq(fu(first), false)
@@ -526,6 +527,7 @@ local function loadScript(env)
 	end
 	G.__timers = timers
 	G.__modules, G.__recipes, G.__registered = modules, recipes, registered
+	G.__logs = logs
 	G.__setRecipe = function(name) currentRecipe = name end
 	return exports, logs, G, render, lineReactUtil
 end
@@ -578,7 +580,7 @@ test("script: unreadable params -> default mode, logged once", function()
 	lu.autoLoadConfig({ path = { via(load(2), false), a } })
 	eq(fu(a), true, "MODE_ALL")
 	local n = 0
-	for _, m in ipairs(logs) do if m:find("unreadable", 1, true) then n = n + 1 end end
+	for _, m in ipairs(logs) do if m:find("mod params unreadable", 1, true) then n = n + 1 end end
 	eq(n, 1)
 end)
 
@@ -1320,7 +1322,11 @@ test("script: passenger slot from cargo_util (id + 1); unreadable -> passengers 
 	-- the stub has no cargo_util: unreadable -> nil -> passengers count
 	local pit, works = via(load(1, 3), false), via(load(1), false)
 	lu.autoLoadConfig({ path = { pit, works } })
+	lu.autoLoadConfig({ path = { pit, works } })
 	eq(fu(works), false)
+	local n = 0
+	for _, m in ipairs(G.__logs or {}) do if m:find("passenger cargo type unreadable", 1, true) then n = n + 1 end end
+	eq(n, 1, "logged once")
 	-- with cargo_util (passengers = id 0 -> slot 1)
 	G.__modules["::/gui/main/cargo_util.tl"] = { getPassengerCargoTypeId = function() return 0 end }
 	lu.autoLoadConfig({ path = { pit, works } })
