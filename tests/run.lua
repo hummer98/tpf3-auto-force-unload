@@ -146,10 +146,11 @@ end)
 ------------------------------------------------------------------------
 -- apply: MODE_ALL
 ------------------------------------------------------------------------
-test("all: load all false -> forceUnload true", function()
-	local line = { path = { via(load(), false) } }
-	core.apply(line, core.MODE_ALL)
-	eq(fu(line.path[1]), true)
+test("all: load all false on a line that carries cargo -> forceUnload true", function()
+	local line = { path = { via(load(2), false), via(load(), false) } }
+	core.apply(line, core.MODE_ALL, nil, 1)
+	eq(fu(line.path[1]), false)
+	eq(fu(line.path[2]), true)
 end)
 
 test("all: passengers-only load -> forceUnload false", function()
@@ -174,9 +175,9 @@ test("all: customFilters = true -> nothing changes", function()
 end)
 
 test("all: customFilters nil (a brand-new line) counts as false", function()
-	local line = { path = { via(load(), false) } }
-	core.apply(line, core.MODE_ALL)
-	eq(fu(line.path[1]), true)
+	local line = { path = { via(load(3), true), via(load(), false) } }
+	core.apply(line, core.MODE_ALL, nil, 1)
+	eq(fu(line.path[2]), true)
 end)
 
 test("all: waypoints (no stop) and stops without stopConfig are skipped", function()
@@ -334,9 +335,9 @@ test("install: missing makeNewStop -> autoLoadConfig still wrapped, logged", fun
 	lu.makeNewStop = nil
 	eq(core.install(lu, { getMode = function() return core.MODE_ALL end, log = function(m) logs[#logs + 1] = m end }), true)
 	eq(#logs, 1)
-	local line = { path = { via(load(), false) } }
+	local line = { path = { via(load(2), false), via(load(), false) } }
 	lu.autoLoadConfig(line)
-	eq(fu(line.path[1]), true)
+	eq(fu(line.path[2]), true)
 end)
 
 test("mode new, end to end: add a stop to an existing line", function()
@@ -390,11 +391,24 @@ test("mode new: an unmarked stop that is not makeNewStop's is unchanged", functi
 	eq(fu(stranger), false)
 end)
 
-test("mode new: a new line's first stop (one stop, loads nothing) -> on", function()
+test("mode new: a new line's first stop (one stop, nothing to carry yet) -> off", function()
 	local lu = installed(core.MODE_NEW)
 	local first = lu.makeNewStop({})
 	lu.autoLoadConfig({ path = { first } })
+	eq(fu(first), false)
+end)
+
+test("mode new: the first stop is decided again when the second is added (unload end first)", function()
+	-- the player starts the line at the receiving industry: alone it was
+	-- off; once the loading stop is added it must turn on
+	local lu = installed(core.MODE_NEW)
+	local first = lu.makeNewStop({})
+	lu.autoLoadConfig({ path = { first } })
+	eq(fu(first), false)
+	local second = lu.makeNewStop({})
+	lu.autoLoadConfig({ path = { first, second }, plan = { load(), load(2) } })
 	eq(fu(first), true)
+	eq(fu(second), false)
 end)
 
 test("makeNewStop wrapper passes arguments and results through", function()
@@ -560,8 +574,8 @@ test("script: unreadable params -> default mode, logged once", function()
 	local lu = fakeLineUtil()
 	local _, logs = loadScript({ lineUtil = lu, getModParams = function() error("restricted") end })
 	local a = via(load(), false)
-	lu.autoLoadConfig({ path = { a } })
-	lu.autoLoadConfig({ path = { a } })
+	lu.autoLoadConfig({ path = { via(load(2), false), a } })
+	lu.autoLoadConfig({ path = { via(load(2), false), a } })
 	eq(fu(a), true, "MODE_ALL")
 	local n = 0
 	for _, m in ipairs(logs) do if m:find("unreadable", 1, true) then n = n + 1 end end
@@ -1018,9 +1032,13 @@ test("stopConfig as an engine object (proxy with __index/__newindex) is read and
 		__newindex = function(_, k, v) writes = writes + 1; store[k] = v end,
 	})
 	local v = { stop = { passThroughStopData = { stopConfig = cfg } } }
-	core.apply({ path = { v } }, core.MODE_ALL)
+	core.apply({ path = { via(load(2), false), v } }, core.MODE_ALL, nil, 1)
 	eq(store.forceUnload, true)
 	eq(writes, 1)
+	-- passengers only on the proxy: still counts as "no cargo loaded"
+	store.load = load(1)
+	core.apply({ path = { via(load(2), false), v } }, core.MODE_ALL, nil, 1)
+	eq(store.forceUnload, true)
 	eq(rawget(cfg, "forceUnload"), nil, "written through the object, not beside it")
 end)
 
@@ -1231,6 +1249,82 @@ test("installIcon: onFailure called once with the error; later calls skip decora
 	lru.LineCargoDisplay(p); lru.LineCargoDisplay(p)
 	eq(calls, 1, "decorate not tried again")
 	eq(#seen, 1); eq(seen[1], "boom")
+end)
+
+------------------------------------------------------------------------
+-- judgement: cargo other than passengers (in-game finding 2026-11-18)
+------------------------------------------------------------------------
+test("hasCargoLoad: passengers ignored when their slot is known; nil index counts them", function()
+	eq(core.hasCargoLoad(load(1), 1), false)
+	eq(core.hasCargoLoad(load(1, 3), 1), true)
+	eq(core.hasCargoLoad(load(), 1), false)
+	eq(core.hasCargoLoad(nil, 1), false)
+	eq(core.hasCargoLoad(load(1), nil), true, "unknown slot: passengers count (safe side)")
+	eq(core.hasCargoLoad({ [1] = true, [9] = true }, 1), true, "sparse table read completely")
+end)
+
+test("cargo truck line: the unload stop with passengers on (as the game sets it) -> on", function()
+	-- clay pit loads clay (3) + passengers; brick works only passengers
+	local pit, works = via(load(1, 3), false), via(load(1), false)
+	core.apply({ path = { pit, works } }, core.MODE_ALL, nil, 1)
+	eq(fu(pit), false)
+	eq(fu(works), true)
+end)
+
+test("passenger-only line: every stop off (no marker on bus stops)", function()
+	local a, b = via(load(1), true), via(load(1), true)
+	core.apply({ path = { a, b } }, core.MODE_ALL, nil, 1)
+	eq(fu(a), false); eq(fu(b), false)
+end)
+
+test("a line where no stop loads anything: every stop off", function()
+	local a, b = via(load(), true), via(load(), true)
+	core.apply({ path = { a, b } }, core.MODE_ALL, nil, 1)
+	eq(fu(a), false); eq(fu(b), false)
+end)
+
+test("one-stop line (being built): off", function()
+	local a = via(load(1), true)
+	core.apply({ path = { a } }, core.MODE_ALL, nil, 1)
+	eq(fu(a), false)
+	local b = via(load(), true)
+	core.apply({ path = { b } }, core.MODE_ALL, nil, 1)
+	eq(fu(b), false)
+end)
+
+test("passenger slot unknown (nil): passengers count, the brick works stays off", function()
+	local pit, works = via(load(1, 3), true), via(load(1), true)
+	core.apply({ path = { pit, works } }, core.MODE_ALL, nil, nil)
+	eq(fu(pit), false)
+	eq(fu(works), false, "safe side: never on by mistake")
+end)
+
+test("mode new on a passenger-only line: the new stop stays off", function()
+	local a, b, n = via(load(1), false), via(load(1), false), via(load(1), true)
+	core.apply({ path = { a, b, n } }, core.MODE_NEW, function(v) return v == n end, 1)
+	eq(fu(n), false)
+end)
+
+test("install passes the passenger slot from deps.passengerIndex", function()
+	local lu = fakeLineUtil()
+	core.install(lu, { getMode = function() return core.MODE_ALL end, passengerIndex = function() return 1 end })
+	local pit, works = via(load(1, 3), false), via(load(1), false)
+	lu.autoLoadConfig({ path = { pit, works } })
+	eq(fu(works), true)
+end)
+
+test("script: passenger slot from cargo_util (id + 1); unreadable -> passengers count", function()
+	local lu = fakeLineUtil()
+	local env = { lineUtil = lu, getModParams = function() return {} end }
+	local _, _, G = loadScript(env)
+	-- the stub has no cargo_util: unreadable -> nil -> passengers count
+	local pit, works = via(load(1, 3), false), via(load(1), false)
+	lu.autoLoadConfig({ path = { pit, works } })
+	eq(fu(works), false)
+	-- with cargo_util (passengers = id 0 -> slot 1)
+	G.__modules["::/gui/main/cargo_util.tl"] = { getPassengerCargoTypeId = function() return 0 end }
+	lu.autoLoadConfig({ path = { pit, works } })
+	eq(fu(works), true)
 end)
 
 print(string.format("\n%d passed, %d failed", passes, failures))

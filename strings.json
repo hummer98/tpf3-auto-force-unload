@@ -1,9 +1,9 @@
 {
 	"en": {
 		"mod_name": "Force Unload by Default",
-		"mod_desc": "Turns on \"Force Unload All Cargo On Arrival\" at line stops where nothing is loaded, and turns it off where something (passengers included) is loaded, whenever the line manager sets up a line's load configuration automatically. Lines whose cargo settings you changed by hand are left alone.",
+		"mod_desc": "Turns on \"Force Unload All Cargo On Arrival\" at line stops that load no cargo (passengers aside), and turns it off at stops that load cargo, whenever the line manager sets up a line's load configuration automatically. Lines that carry no cargo at all (passenger lines, a line with a single stop) keep it off everywhere. Lines whose cargo settings you changed by hand are left alone.",
 		"hummer_force_unload_default_mode_name": "Stops to set",
-		"hummer_force_unload_default_mode_tip": "All stops of the line: whenever a line is edited (stop or waypoint added, stop removed or moved in the order), every stop is set again: on where nothing is loaded, off where something is loaded. Lines that existed before this mod are adjusted the next time they are edited.\nNew stops only: only the stops added in that edit are set; the other stops keep their setting even if what they load changed with the edit (a line's very first stop is set again when the second one is added).\nNote: with force unload on, cargo is unloaded into a full stock and destroyed, also at a stop along the way where it could have gone on to a later stop.\nEither way, lines whose cargo settings or checkboxes you changed by hand are not touched, and moving a stop to another station changes nothing.",
+		"hummer_force_unload_default_mode_tip": "All stops of the line: whenever a line is edited (stop or waypoint added, stop removed or moved in the order), every stop is set again: on where no cargo is loaded (passengers do not count), off where cargo is loaded; all off on a line that loads no cargo anywhere. Lines that existed before this mod are adjusted the next time they are edited.\nNew stops only: only the stops added in that edit are set; the other stops keep their setting even if what they load changed with the edit (a line's very first stop is set again when the second one is added).\nNote: with force unload on, cargo is unloaded into a full stock and destroyed, also at a stop along the way where it could have gone on to a later stop.\nEither way, lines whose cargo settings or checkboxes you changed by hand are not touched, and moving a stop to another station changes nothing.",
 		"hummer_force_unload_default_mode_all": "All stops of the line",
 		"hummer_force_unload_default_mode_new": "New stops only",
 		"hummer_force_unload_default_icon_name": "Marker in the stop list",
@@ -21,9 +21,9 @@
 	},
 	"ja": {
 		"mod_name": "積み下ろし強制を既定でオン",
-		"mod_desc": "路線マネージャーが路線の積み込む貨物を自動で決めるとき、積み込みが一つもない停留所では「到着時にすべての貨物を強制的に積み下ろし」をオンに、積み込みのある停留所（旅客を含む）ではオフにします。積み込む貨物などを手で変えた路線には触りません。",
+		"mod_desc": "路線マネージャーが路線の積み込む貨物を自動で決めるとき、旅客以外の貨物を一つも積まない停留所では「到着時にすべての貨物を強制的に積み下ろし」をオンに、貨物を積む停留所ではオフにします。どの停留所でも貨物を積まない路線（旅客だけの路線、停留所が 1 つの路線）は全部オフのままです。積み込む貨物などを手で変えた路線には触りません。",
 		"hummer_force_unload_default_mode_name": "設定する停留所",
-		"hummer_force_unload_default_mode_tip": "路線の全停留所を合わせる: 路線を編集する（停留所や経由点の追加、停留所の削除・順番の入れ替え）たびに、全停留所を設定し直します。積み込みのない停留所はオン、積み込みのある停留所はオフです。この Mod を入れる前からある路線も、次に編集したときに合わせます。\n新しく足した停留所だけ: その編集で足した停留所だけを設定します。ほかの停留所は、編集で積み込む貨物が変わっても設定をそのままにします（路線の最初の停留所だけは、2 つ目を足したときに設定し直します）。\n注意: オンの停留所では、在庫が満タンでも貨物を下ろして破棄します。途中の停留所で、先の停留所へ運べたはずの貨物も消えます。\nどちらでも、積み込む貨物やチェックボックスを手で変えた路線には触らず、停留所を別の駅へ動かしただけでは何も変えません。",
+		"hummer_force_unload_default_mode_tip": "路線の全停留所を合わせる: 路線を編集する（停留所や経由点の追加、停留所の削除・順番の入れ替え）たびに、全停留所を設定し直します。旅客以外の貨物を積まない停留所はオン、貨物を積む停留所はオフです。どの停留所でも貨物を積まない路線は全部オフです。この Mod を入れる前からある路線も、次に編集したときに合わせます。\n新しく足した停留所だけ: その編集で足した停留所だけを設定します。ほかの停留所は、編集で積み込む貨物が変わっても設定をそのままにします（路線の最初の停留所だけは、2 つ目を足したときに設定し直します）。\n注意: オンの停留所では、在庫が満タンでも貨物を下ろして破棄します。途中の停留所で、先の停留所へ運べたはずの貨物も消えます。\nどちらでも、積み込む貨物やチェックボックスを手で変えた路線には触らず、停留所を別の駅へ動かしただけでは何も変えません。",
 		"hummer_force_unload_default_mode_all": "路線の全停留所を合わせる",
 		"hummer_force_unload_default_mode_new": "新しく足した停留所だけ",
 		"hummer_force_unload_default_icon_name": "停留所一覧の印",

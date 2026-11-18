@@ -1,6 +1,6 @@
 -- Force Unload by Default: turns on "Force Unload All Cargo On Arrival"
--- (stopConfig.forceUnload) at stops where the line loads nothing, and off
--- where it loads something, whenever the base line manager works out the
+-- (stopConfig.forceUnload) at stops where the line loads no cargo
+-- (passengers aside), and off where it loads cargo, whenever the base line manager works out the
 -- load config of a line (see fud_core.lua for the rules).
 --
 -- Hook: the base manager window (gui/line_vehicle_mgmt/manager_window.tl)
@@ -245,6 +245,17 @@ local function installIcon()
 	return result and "new" or false
 end
 
+-- 1-based slot of passengers in a stop's load list (the base's IdVector is
+-- cargo id + 1); nil when cargo_util cannot be read, which counts passengers
+-- as cargo (the stop then stays off: the safe side).
+local function passengerIndex()
+	local ok, id = pcall(function()
+		return ug_require("::/gui/main/cargo_util.tl").getPassengerCargoTypeId()
+	end)
+	if ok and type(id) == "number" then return id + 1 end
+	return nil
+end
+
 local function install()
 	local okReq, line_util = pcall(ug_require, "::/gui/line_vehicle_mgmt/line_util.tl")
 	if not okReq then
@@ -254,7 +265,7 @@ local function install()
 	if type(line_util) == "table" and line_util[core.GUARD_KEY] then
 		return true -- a second load of this script: already wrapped
 	end
-	local okInst, result = pcall(core.install, line_util, { getMode = getMode, log = log })
+	local okInst, result = pcall(core.install, line_util, { getMode = getMode, log = log, passengerIndex = passengerIndex })
 	if not okInst then
 		log("wrapping line_util failed: " .. tostring(result))
 		return false

@@ -7,7 +7,7 @@
 -- reorder a stop, add a waypoint) and right before it commits the line.
 -- forceUnload itself is only ever set by makeNewStop (always false) and by
 -- the player in the cargo filter window. Running after autoLoadConfig, the
--- load lists are final, so "this stop loads nothing" can be read off them.
+-- load lists are final, so "this stop loads no cargo" can be read off them.
 --
 -- Lines with customFilters = true are left alone: the base sets it when the
 -- player edits a stop's load config or one of its checkboxes, and its own
@@ -93,22 +93,54 @@ local function stopConfigOf(via)
 	return type(data) == "table" and data.stopConfig or nil
 end
 
-local function applyTo(via)
+-- true when the load list has a cargo other than passengers switched on.
+-- The base switches passengers on at every stop whose station takes them,
+-- cargo truck stops included (seen in game), so counting them would leave
+-- no stop "loading nothing". passengerIndex is the 1-based slot of the
+-- passenger cargo type (cargo id + 1); nil counts every slot.
+function M.hasCargoLoad(load, passengerIndex)
+	if passengerIndex == nil then return M.hasLoad(load) end
+	if load == nil then return false end
+	if type(load) == "table" then
+		for k, v in pairs(load) do
+			if v == true and k ~= passengerIndex then return true end
+		end
+		return false
+	end
+	for k, v in ipairs(load) do
+		if v == true and k ~= passengerIndex then return true end
+	end
+	return false
+end
+
+-- A passenger-only line has no cargo to force-unload; leaving it alone also
+-- keeps the stop-list marker off every bus stop.
+local function lineLoadsCargo(path, passengerIndex)
+	for _, via in ipairs(path) do
+		local cfg = stopConfigOf(via)
+		if cfg ~= nil and M.hasCargoLoad(cfg.load, passengerIndex) then return true end
+	end
+	return false
+end
+
+local function applyTo(via, cargoLine, passengerIndex)
 	local cfg = stopConfigOf(via)
 	if cfg == nil then return end
-	cfg.forceUnload = not M.hasLoad(cfg.load)
+	cfg.forceUnload = cargoLine and not M.hasCargoLoad(cfg.load, passengerIndex)
 end
 
 -- Sets forceUnload on the stops of line (a Line.ReactLine). isNew(via) tells
 -- whether the stop was made in this edit; it is only asked in MODE_NEW.
-function M.apply(line, mode, isNew)
+-- passengerIndex: see hasCargoLoad.
+function M.apply(line, mode, isNew, passengerIndex)
 	if type(line) ~= "table" or line.customFilters then return end
 	local path = line.path
 	if type(path) ~= "table" then return end
+	local cargoLine = lineLoadsCargo(path, passengerIndex)
 
 	if mode ~= M.MODE_NEW then
 		for _, via in ipairs(path) do
-			applyTo(via)
+			applyTo(via, cargoLine, passengerIndex)
 		end
 		return
 	end
@@ -125,16 +157,16 @@ function M.apply(line, mode, isNew)
 	end
 	if #newVias == 0 then return end
 	for _, via in ipairs(newVias) do
-		applyTo(via)
+		applyTo(via, cargoLine, passengerIndex)
 	end
 	-- A line is created as soon as its first stop is placed, and with one
-	-- stop nothing can be loaded there yet (cargo is only loaded for another
-	-- stop that takes it), so that first verdict is almost always "on". When
-	-- the line grows from that single stop, it is decided again together
-	-- with the new ones; otherwise every line's first stop would keep
-	-- force-unloading even where it loads.
+	-- stop no cargo can be loaded yet (cargo is only loaded for another stop
+	-- that takes it), so that first stop is always decided "off" (no cargo
+	-- line). When the line grows from that single stop, it is decided again
+	-- together with the new ones; otherwise a line started at its unload
+	-- end would never get force unload there.
 	if #oldVias == 1 then
-		applyTo(oldVias[1])
+		applyTo(oldVias[1], cargoLine, passengerIndex)
 	end
 end
 
@@ -191,7 +223,7 @@ function M.install(line_util, deps)
 		-- as it would without this mod, and nothing below runs.
 		local results = pack(origAuto(line, ...))
 		local ok, err = pcall(function()
-			M.apply(line, deps.getMode and deps.getMode() or M.DEFAULT_MODE, isNew)
+			M.apply(line, deps.getMode and deps.getMode() or M.DEFAULT_MODE, isNew, deps.passengerIndex and deps.passengerIndex() or nil)
 		end)
 		pcall(clearMarks, line)
 		if not ok and not failed then
