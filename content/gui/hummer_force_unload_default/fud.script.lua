@@ -93,8 +93,8 @@ end
 -- The entry plugin recipe is registered once per GUI state and kept on the
 -- cached builtin module table: this script is named by two resources
 -- (replace.res.lua and entry.res.lua), and if the loader ran the chunk for
--- each, a second RegisterRecipe under the same name could leave the two
--- runs with different recipes.
+-- each, a second RegisterPluginRecipe under the same name could leave the
+-- two runs with different recipes.
 local SHARED_KEY = "__hummer_force_unload_default_recipes"
 local shared = builtin[SHARED_KEY]
 if type(shared) ~= "table" then
@@ -134,12 +134,13 @@ end
 -- registered ourselves into this row made the game fail with
 -- "ReactFramework::Step() failed" and reload the GUI (2026-11-18, also
 -- with no hooks inside it), while plain nodes in the same box rendered
--- fine. Whether the CSS on that recipe's root (gravity / margin) or a root
--- with a tooltip (react's WithComponentParams) was the cause is not
--- settled. So the marker is drawn with plain nodes only: the cell is
--- decided here, while the stop row (LineStopItem) renders, and placed
--- directly: the icon when the stop's forceUnload is on, else an empty cell
--- of the same size, so the cargo icons of all rows stay in one column. No hooks: this runs inside the
+-- fine. Whether the CSS on that recipe's root (gravity / margin), a root
+-- with a tooltip (react's WithComponentParams), or an own recipe in this
+-- row as such was the cause is not settled. So the marker is drawn with
+-- plain nodes only: the cell is decided here, while the stop row
+-- (LineStopItem) renders, and placed directly: the icon when the stop's
+-- forceUnload is on, else an empty cell of the same size, so the cargo
+-- icons of all rows stay in one column. No hooks: this runs inside the
 -- base recipe, whose hook order must not change.
 -- Freshness: the row renders again when the manager's line state changes,
 -- which it takes from the game every step (manager_window.tl

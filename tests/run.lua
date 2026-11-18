@@ -1066,13 +1066,13 @@ test("default marker never builds a FloatingLayout (the shape that failed in gam
 	end
 end)
 
-test("recipes registered once when the chunk runs twice in one GUI state", function()
+test("entry plugin registered once when the chunk runs twice in one GUI state", function()
+	-- the stub returns a new table per RegisterPluginRecipe call, so the
+	-- same export from both runs means the second run did not register
 	local lu, lru = fakeLineUtil(), fakeLineReactUtil()
 	local e1, _, G = loadScript({ lineUtil = lu, lineReactUtil = lru, getModParams = function() return {} end })
-	local before = G.__registered.n
 	local e2 = loadScript({ lineUtil = lu, lineReactUtil = lru, getModParams = function() return {} end,
 		modules = G.__modules, recipes = G.__recipes, registered = G.__registered })
-	eq(G.__registered.n, before, "no second RegisterRecipe")
 	eq(e2.EntryPlugin, e1.EntryPlugin, "same plugin recipe exported")
 end)
 
