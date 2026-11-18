@@ -116,12 +116,16 @@ end
 
 -- After a failure in our part of the row the stop rows are no longer
 -- decorated for the rest of the session: the base row is drawn as without
--- this mod. Logged once.
+-- this mod. Logged once. Failures before the box is built are caught (and
+-- the decoration stopped) by core.installIcon, which calls back here;
+-- markBroken itself covers a failure after the base node is in the box.
 local markerBroken = false
 local function markBroken(where, err)
 	if markerBroken then return end
 	markerBroken = true
-	log("stop marker disabled after a failure in " .. where .. ": " .. tostring(err))
+	if where then
+		log("stop marker disabled after a failure in " .. where .. ": " .. tostring(err))
+	end
 end
 
 local function placeholder()
@@ -138,19 +142,45 @@ local function iconView()
 	}
 end
 
--- MARKER_PROBE only: the marker as a recipe of its own, the form that
--- failed in game (2026-11-18: dev_marker 1 and 3 of the previous version
--- failed with "ReactFramework::Step() failed", the box with a plain empty
--- cell did not). Its root carries a class with size only, no gravity or
--- margin, to test whether those rules on a recipe's root were the cause.
--- Registered at load like the base's recipes, once per GUI state.
-if not shared.ProbeIcon then
-	shared.ProbeIcon = react.RegisterRecipe("HummerForceUnloadStopIconProbe", function(params)
-		local on = readStop(params.lineEntity, params.stopIndex)
-		return builtin.Component{ meta = { class = on and "fud-stop-icon-probe-on" or "fud-stop-icon-probe" } }
-	end)
+-- Probes (dev_marker 3-5): the marker as a recipe of its own, the form
+-- that failed in game (2026-11-18: an own recipe in the box failed with
+-- "ReactFramework::Step() failed", a plain empty cell in the same box did
+-- not). Each differs from PLAIN in one thing:
+--   GRAVITY  root = the normal empty cell (class with gravity and margin)
+--   TOOLTIP  root = an ImageView with a tooltip, which react turns into a
+--            WithComponentParams node; shown on every stop, so the probe
+--            also works on a line where no stop has forceUnload on
+--   PLAIN    root = an empty Component, class with size only
+-- The rules sit on the root's class (as they did in the failed form), not
+-- on R::<recipe>: the question is whether the failed form broke because of
+-- them.
+local PROBE_NAMES = {
+	[core.MARKER_PROBE_GRAVITY] = "HummerForceUnloadProbeGravity",
+	[core.MARKER_PROBE_TOOLTIP] = "HummerForceUnloadProbeTooltip",
+	[core.MARKER_PROBE_PLAIN] = "HummerForceUnloadProbePlain",
+}
+local function probeRoot(variant, params)
+	if variant == core.MARKER_PROBE_GRAVITY then
+		return placeholder()
+	elseif variant == core.MARKER_PROBE_TOOLTIP then
+		return builtin.ImageView{
+			meta = { class = "fud-stop-icon-probe", tooltip = tooltipText() },
+			path = ICON_PATH,
+			scaling = builtin.type.ImageViewScaling.AutoFit,
+		}
+	end
+	local on = readStop(params.lineEntity, params.stopIndex)
+	return builtin.Component{ meta = { class = on and "fud-stop-icon-probe-on" or "fud-stop-icon-probe" } }
 end
-local ProbeIcon = shared.ProbeIcon
+-- Registered at load like the base's recipes, once per GUI state.
+shared.probes = shared.probes or {}
+for variant, name in pairs(PROBE_NAMES) do
+	if not shared.probes[variant] then
+		shared.probes[variant] = react.RegisterRecipe(name, function(params)
+			return probeRoot(variant, params)
+		end)
+	end
+end
 
 -- The marker is no recipe of its own: an own recipe here made the line
 -- manager's GUI step fail in game (see above), while plain builtin nodes
@@ -169,8 +199,8 @@ local function decorate(node, params)
 	local marker
 	if variant == core.MARKER_BOX_ONLY then
 		marker = placeholder()
-	elseif variant == core.MARKER_PROBE then
-		marker = ProbeIcon{ lineEntity = params.lineEntity, stopIndex = params.stopIndex }
+	elseif shared.probes[variant] then
+		marker = shared.probes[variant]{ lineEntity = params.lineEntity, stopIndex = params.stopIndex }
 	else
 		marker = readStop(params.lineEntity, params.stopIndex) and iconView() or placeholder()
 	end
@@ -204,7 +234,10 @@ local function installIcon()
 	if type(line_react_util) == "table" and line_react_util[core.ICON_GUARD_KEY] then
 		return true
 	end
-	local okInst, result = pcall(core.installIcon, line_react_util, { enabled = markerEnabled, decorate = decorate, log = log })
+	local okInst, result = pcall(core.installIcon, line_react_util, {
+		enabled = markerEnabled, decorate = decorate, log = log,
+		onFailure = function() markBroken(nil) end,
+	})
 	if not okInst then
 		log("wrapping LineCargoDisplay failed: " .. tostring(result))
 		return false

@@ -28,10 +28,14 @@ M.ICON_OFF = 1
 M.ICON_ON = 2
 
 -- Values of the development param "dev_marker" (same indexing). Default
--- and anything unknown: MARKER_NORMAL.
-M.MARKER_NORMAL = 1   -- box { icon or empty cell, built in the row's render, base node }
-M.MARKER_BOX_ONLY = 2 -- box { empty cell, base node }: the form that worked in game
-M.MARKER_PROBE = 3    -- box { own recipe, base node }: to confirm why that failed
+-- and anything unknown: MARKER_NORMAL. The probes put the marker in a
+-- recipe of its own (the form that failed in game) and differ in one thing
+-- each, to tell the cause apart.
+M.MARKER_NORMAL = 1         -- box { icon or empty cell, built in the row's render, base node }
+M.MARKER_BOX_ONLY = 2       -- box { empty cell, base node }: the form that worked in game
+M.MARKER_PROBE_GRAVITY = 3  -- recipe root: empty Component, class with gravity + margin
+M.MARKER_PROBE_TOOLTIP = 4  -- recipe root: ImageView with tooltip, class with size only
+M.MARKER_PROBE_PLAIN = 5    -- recipe root: empty Component, class with size only
 
 -- Marker field on the line_util table: the GUI may load the entry script
 -- more than once, and a second wrap would run the post-processing twice and
@@ -59,7 +63,9 @@ end
 function M.markerVariantFromParams(all)
 	local mine = type(all) == "table" and all[M.MOD_ID] or nil
 	local v = type(mine) == "table" and mine.dev_marker or nil
-	if v == M.MARKER_BOX_ONLY or v == M.MARKER_PROBE then return v end
+	if type(v) == "number" and v >= M.MARKER_BOX_ONLY and v <= M.MARKER_PROBE_PLAIN and v % 1 == 0 then
+		return v
+	end
 	return M.MARKER_NORMAL
 end
 
@@ -265,8 +271,9 @@ function M.readForceUnload(getComponent, lineEntity, stopIndex)
 end
 
 -- Wraps line_react_util.LineCargoDisplay once. deps: enabled() -> boolean
--- (the param), decorate(node, params) -> node with the marker, log(msg).
--- A failing decorate returns the base node, logged once.
+-- (the param), decorate(node, params) -> node with the marker, log(msg),
+-- onFailure(err) (optional). A failing decorate returns the base node,
+-- logged once, and switches the marker off for the session.
 function M.installIcon(line_react_util, deps)
 	deps = deps or {}
 	local log = deps.log or function() end
@@ -280,9 +287,13 @@ function M.installIcon(line_react_util, deps)
 		log("line_react_util.LineCargoDisplay missing; no stop marker")
 		return false
 	end
+	-- After the first failure no stop row is decorated any more: a part that
+	-- keeps failing (e.g. only the icon) would otherwise leave some rows
+	-- boxed and others bare, and the cargo column would zigzag.
 	local failed = false
 	line_react_util.LineCargoDisplay = function(...)
 		local node = prev(...)
+		if failed then return node end
 		local params = M.stopRowParams(...)
 		if params == nil then return node end
 		local ok, result = pcall(function()
@@ -290,9 +301,10 @@ function M.installIcon(line_react_util, deps)
 			return deps.decorate(node, params)
 		end)
 		if ok and result ~= nil then return result end
-		if not ok and not failed then
+		if not ok then
 			failed = true
-			log("stop marker failed: " .. tostring(result) .. " (further failures not logged)")
+			log("stop marker failed, stop rows are no longer decorated: " .. tostring(result))
+			if deps.onFailure then pcall(deps.onFailure, result) end
 		end
 		return node
 	end

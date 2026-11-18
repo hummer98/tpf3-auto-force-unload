@@ -22,8 +22,8 @@ function data()
 		margin = { 0, 2, 0, 0 },
 		gravity = { 0, 0.5 }, -- centred in the row height
 	})
-	-- only for the development variant MARKER_PROBE: size only, so the
-	-- probe tells whether gravity / margin on a recipe's root broke it
+	-- only for the probes dev_marker 4 and 5 (TOOLTIP, PLAIN): size only;
+	-- dev_marker 3 (GRAVITY) uses the cell rule above
 	a("R::LineStopItem !fud-stop-icon-probe", {
 		size = { 14, 14 },
 	})

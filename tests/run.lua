@@ -1100,30 +1100,6 @@ test("a line with marker on and off rows: icon and empty cell side by side", fun
 	eq(table.concat(kinds, ","), "Component,ImageView,Component")
 end)
 
-test("markerVariantFromParams: 1..3, unknown -> normal", function()
-	for v = 1, 3 do
-		eq(core.markerVariantFromParams({ hummer_force_unload_default = { dev_marker = v } }), v)
-	end
-	eq(core.markerVariantFromParams({ hummer_force_unload_default = { dev_marker = 4 } }), core.MARKER_NORMAL)
-	eq(core.markerVariantFromParams({}), core.MARKER_NORMAL)
-	eq(core.markerVariantFromParams(nil), core.MARKER_NORMAL)
-end)
-
-test("mod.json: dev_marker defaults to Normal, three values with strings in en/ja", function()
-	local f = assert(io.open(root .. "/mod.json")); local s = f:read("*a"); f:close()
-	local block = s:match('"key": "dev_marker".-}')
-	assert(block and block:find('"defaultIndex": 0', 1, true))
-	local n = 0
-	for _ in block:gmatch("hummer_force_unload_default_dev_v%d") do n = n + 1 end
-	eq(n, 3)
-	f = assert(io.open(root .. "/strings.json")); local st = f:read("*a"); f:close()
-	for _, lang in ipairs({ "en", "ja" }) do
-		local b = st:match('"' .. lang .. '"%s*:%s*(%b{})')
-		for i = 1, 3 do assert(b:find('"hummer_force_unload_default_dev_v' .. i .. '"', 1, true), lang .. " v" .. i) end
-		assert(not b:find('"hummer_force_unload_default_dev_v4"', 1, true), "old values removed")
-	end
-end)
-
 test("normal: no recipe of ours anywhere in the decorated row, no hooks", function()
 	for _, fu in ipairs({ false, true }) do
 		local _, _, G, _, lru = loadScript(rowEnv({ lines = { [7] = lineWith(fu) } }))
@@ -1151,15 +1127,6 @@ test("variant box only: empty cell whatever the value", function()
 	eq(cell.kind, "Component"); eq(cell.recipe, nil)
 end)
 
-test("variant probe: own recipe, root class with size only", function()
-	local _, _, _, render, lru = loadScript(variantEnv(3))
-	local cell = lru.LineCargoDisplay(STOP).layout.children[1]
-	eq(cell.recipe, "HummerForceUnloadStopIconProbe")
-	eq(render(cell).meta.class, "fud-stop-icon-probe-on", "stop 1 is on")
-	local off = lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7, stopIndex = 0 }).layout.children[1]
-	eq(render(off).meta.class, "fud-stop-icon-probe")
-end)
-
 test("normal: a failure building the cell falls back to the bare base node", function()
 	local _, logs, G, _, lru = loadScript(rowEnv())
 	local builtin = G.__modules["::/gui/main/builtin.lua"]
@@ -1177,6 +1144,93 @@ test("fud.css.lua: cell rule has size and gravity; probe rule size only", functi
 	assert(cell and cell:find("size") and cell:find("gravity"), "cell rule")
 	local probe = s:match('"R::LineStopItem !fud%-stop%-icon%-probe", (%b{})')
 	assert(probe and not probe:find("gravity") and not probe:find("margin"), "probe rule without gravity/margin")
+end)
+
+test("markerVariantFromParams: 1..5, unknown -> normal", function()
+	for v = 1, 5 do
+		eq(core.markerVariantFromParams({ hummer_force_unload_default = { dev_marker = v } }), v)
+	end
+	for _, v in ipairs({ 0, 6, 2.5, "3" }) do
+		eq(core.markerVariantFromParams({ hummer_force_unload_default = { dev_marker = v } }), core.MARKER_NORMAL)
+	end
+	eq(core.markerVariantFromParams(nil), core.MARKER_NORMAL)
+end)
+
+test("mod.json: dev_marker defaults to Normal, five values with strings in en/ja", function()
+	local f = assert(io.open(root .. "/mod.json")); local s = f:read("*a"); f:close()
+	local block = s:match('"key": "dev_marker".-}')
+	assert(block and block:find('"defaultIndex": 0', 1, true))
+	local n = 0
+	for _ in block:gmatch("hummer_force_unload_default_dev_v%d") do n = n + 1 end
+	eq(n, 5)
+	f = assert(io.open(root .. "/strings.json")); local st = f:read("*a"); f:close()
+	for _, lang in ipairs({ "en", "ja" }) do
+		local b = st:match('"' .. lang .. '"%s*:%s*(%b{})')
+		for i = 1, 5 do assert(b:find('"hummer_force_unload_default_dev_v' .. i .. '"', 1, true), lang .. " v" .. i) end
+	end
+end)
+
+test("probe 3 (gravity): own recipe whose root is the normal empty cell", function()
+	local _, _, _, render, lru = loadScript(variantEnv(3))
+	local cell = lru.LineCargoDisplay(STOP).layout.children[1]
+	eq(cell.recipe, "HummerForceUnloadProbeGravity")
+	local root = render(cell)
+	eq(root.kind, "Component"); eq(root.meta.class, "fud-stop-icon", "the class with gravity + margin")
+	eq(root.meta.tooltip, nil)
+end)
+
+test("probe 4 (tooltip): own recipe whose root is an ImageView with tooltip, on every stop", function()
+	local _, _, _, render, lru = loadScript(variantEnv(4, { lines = { [7] = lineWith(false, false) } }))
+	local root = render(lru.LineCargoDisplay(STOP).layout.children[1])
+	eq(root.kind, "ImageView", "shown even though the stop is off")
+	eq(root.meta.class, "fud-stop-icon-probe", "size-only class")
+	assert(root.meta.tooltip, "tooltip set")
+end)
+
+test("probe 5 (plain): own recipe, size-only class, colour follows the value", function()
+	local _, _, _, render, lru = loadScript(variantEnv(5))
+	local cell = lru.LineCargoDisplay(STOP).layout.children[1]
+	eq(cell.recipe, "HummerForceUnloadProbePlain")
+	eq(render(cell).meta.class, "fud-stop-icon-probe-on", "stop 1 is on")
+	local off = lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7, stopIndex = 0 }).layout.children[1]
+	eq(render(off).meta.class, "fud-stop-icon-probe")
+end)
+
+test("probe recipes are registered once per GUI state", function()
+	local lu, lru = fakeLineUtil(), fakeLineReactUtil()
+	local _, _, G = loadScript({ lineUtil = lu, lineReactUtil = lru, getModParams = function() return {} end })
+	local before = G.__registered.n
+	eq(before, 3, "three probes")
+	loadScript({ lineUtil = lu, lineReactUtil = lru, getModParams = function() return {} end,
+		modules = G.__modules, recipes = G.__recipes, registered = G.__registered })
+	eq(G.__registered.n, before)
+end)
+
+test("a failing icon stops all decoration (no mix of boxed and bare rows)", function()
+	local _, logs, G, _, lru = loadScript(rowEnv({ lines = { [7] = lineWith(false, true, false) } }))
+	local builtin = G.__modules["::/gui/main/builtin.lua"]
+	builtin.ImageView = function() error("image failed") end
+	local row = function(i) return lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7, stopIndex = i }) end
+	eq(row(0).kind, "Component", "off row boxed before the failure")
+	eq(row(1).base, true, "the failing (on) row: bare base node")
+	eq(row(0).base, true, "off rows bare from now on too")
+	eq(row(2).base, true)
+	local n = 0
+	for _, m in ipairs(logs) do if m:find("stop marker failed", 1, true) then n = n + 1 end end
+	eq(n, 1)
+	eq(lru.cargoCalls, 4, "base drawn every time")
+end)
+
+test("installIcon: onFailure called once with the error; later calls skip decorate", function()
+	local lru = fakeLineReactUtil()
+	local calls, seen = 0, {}
+	local d = iconDeps({ decorate = function() calls = calls + 1; error("boom", 0) end })
+	d.onFailure = function(err) seen[#seen + 1] = err end
+	core.installIcon(lru, d)
+	local p = { stopCargoDisplay = true, lineEntity = 5, stopIndex = 0 }
+	lru.LineCargoDisplay(p); lru.LineCargoDisplay(p)
+	eq(calls, 1, "decorate not tried again")
+	eq(#seen, 1); eq(seen[1], "boom")
 end)
 
 print(string.format("\n%d passed, %d failed", passes, failures))
