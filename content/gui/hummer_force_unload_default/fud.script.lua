@@ -90,28 +90,16 @@ local function readStop(lineEntity, stopIndex)
 	return ok and on == true
 end
 
--- Recipes are registered once per GUI state and kept on the cached builtin
--- module table: this script is named by two resources (replace.res.lua and
--- entry.res.lua), and if the loader ran the chunk for each, a second
--- RegisterRecipe under the same name would leave the wrap (installed by the
--- first run) pointing at a recipe of the other run.
+-- The entry plugin recipe is registered once per GUI state and kept on the
+-- cached builtin module table: this script is named by two resources
+-- (replace.res.lua and entry.res.lua), and if the loader ran the chunk for
+-- each, a second RegisterRecipe under the same name could leave the two
+-- runs with different recipes.
 local SHARED_KEY = "__hummer_force_unload_default_recipes"
 local shared = builtin[SHARED_KEY]
 if type(shared) ~= "table" then
 	shared = {}
 	builtin[SHARED_KEY] = shared
-end
-
--- Development switch for the stop marker (param dev_marker, default 1 =
--- the shipped form). Kept for one more round of in-game checks; see
--- core.MARKER_* for the variants. Read once, like the marker param.
-local markerVariant = nil
-local function getMarkerVariant()
-	if markerVariant ~= nil then return markerVariant end
-	local ok, all = pcall(function() return api.engine.config.getModParams() end)
-	if not ok or type(all) ~= "table" then return core.MARKER_NORMAL end
-	markerVariant = core.markerVariantFromParams(all)
-	return markerVariant
 end
 
 -- After a failure in our part of the row the stop rows are no longer
@@ -142,52 +130,16 @@ local function iconView()
 	}
 end
 
--- Probes (dev_marker 3-5): the marker as a recipe of its own, the form
--- that failed in game (2026-11-18: an own recipe in the box failed with
--- "ReactFramework::Step() failed", a plain empty cell in the same box did
--- not). Each differs from PLAIN in one thing:
---   GRAVITY  root = the normal empty cell (class with gravity and margin)
---   TOOLTIP  root = an ImageView with a tooltip, which react turns into a
---            WithComponentParams node; shown on every stop, so the probe
---            also works on a line where no stop has forceUnload on
---   PLAIN    root = an empty Component, class with size only
--- The rules sit on the root's class (as they did in the failed form), not
--- on R::<recipe>: the question is whether the failed form broke because of
--- them.
-local PROBE_NAMES = {
-	[core.MARKER_PROBE_GRAVITY] = "HummerForceUnloadProbeGravity",
-	[core.MARKER_PROBE_TOOLTIP] = "HummerForceUnloadProbeTooltip",
-	[core.MARKER_PROBE_PLAIN] = "HummerForceUnloadProbePlain",
-}
-local function probeRoot(variant, params)
-	if variant == core.MARKER_PROBE_GRAVITY then
-		return placeholder()
-	elseif variant == core.MARKER_PROBE_TOOLTIP then
-		return builtin.ImageView{
-			meta = { class = "fud-stop-icon-probe", tooltip = tooltipText() },
-			path = ICON_PATH,
-			scaling = builtin.type.ImageViewScaling.AutoFit,
-		}
-	end
-	local on = readStop(params.lineEntity, params.stopIndex)
-	return builtin.Component{ meta = { class = on and "fud-stop-icon-probe-on" or "fud-stop-icon-probe" } }
-end
--- Registered at load like the base's recipes, once per GUI state.
-shared.probes = shared.probes or {}
-for variant, name in pairs(PROBE_NAMES) do
-	if not shared.probes[variant] then
-		shared.probes[variant] = react.RegisterRecipe(name, function(params)
-			return probeRoot(variant, params)
-		end)
-	end
-end
-
--- The marker is no recipe of its own: an own recipe here made the line
--- manager's GUI step fail in game (see above), while plain builtin nodes
--- next to the base node worked. So the cell is decided here, while the stop
--- row (LineStopItem) renders, and placed directly: the icon when the stop's
--- forceUnload is on, else an empty cell of the same size, so the cargo
--- icons of all rows stay in one column. No hooks: this runs inside the
+-- Why plain builtin nodes and no recipe of our own: putting a recipe we
+-- registered ourselves into this row made the game fail with
+-- "ReactFramework::Step() failed" and reload the GUI (2026-11-18, also
+-- with no hooks inside it), while plain nodes in the same box rendered
+-- fine. Whether the CSS on that recipe's root (gravity / margin) or a root
+-- with a tooltip (react's WithComponentParams) was the cause is not
+-- settled. So the marker is drawn with plain nodes only: the cell is
+-- decided here, while the stop row (LineStopItem) renders, and placed
+-- directly: the icon when the stop's forceUnload is on, else an empty cell
+-- of the same size, so the cargo icons of all rows stay in one column. No hooks: this runs inside the
 -- base recipe, whose hook order must not change.
 -- Freshness: the row renders again when the manager's line state changes,
 -- which it takes from the game every step (manager_window.tl
@@ -195,15 +147,7 @@ end
 -- (makeLineUpdateCmd), so the next render here reads the new value. One
 -- LINE read per row render, as the row's own cargo display does per step.
 local function decorate(node, params)
-	local variant = getMarkerVariant()
-	local marker
-	if variant == core.MARKER_BOX_ONLY then
-		marker = placeholder()
-	elseif shared.probes[variant] then
-		marker = shared.probes[variant]{ lineEntity = params.lineEntity, stopIndex = params.stopIndex }
-	else
-		marker = readStop(params.lineEntity, params.stopIndex) and iconView() or placeholder()
-	end
+	local marker = readStop(params.lineEntity, params.stopIndex) and iconView() or placeholder()
 	-- Once node is a child of the box it must not be handed back alone (it
 	-- would get a second parent in the row), so a failure from here on
 	-- returns the box, and only failures before this point fall back to the

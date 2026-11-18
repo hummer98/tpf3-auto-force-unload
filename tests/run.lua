@@ -1045,14 +1045,8 @@ test("stopConfig as an engine object (proxy with __index/__newindex) is read and
 end)
 
 ------------------------------------------------------------------------
--- GUI failure in game (2026-11-18): marker shape, guards, dev variants
+-- GUI failure in game (2026-11-18): marker shape and guards
 ------------------------------------------------------------------------
-local function variantEnv(v, over)
-	local env = rowEnv(over)
-	env.getModParams = function() return { hummer_force_unload_default = { dev_marker = v } } end
-	return env
-end
-
 -- every node of a tree, recipes rendered
 local function walk(node, render, visit)
 	if type(node) ~= "table" then return end
@@ -1070,15 +1064,6 @@ test("default marker never builds a FloatingLayout (the shape that failed in gam
 			assert(n.kind ~= "FloatingLayout" and n.kind ~= "FloatingLayoutChild", "floating layout built")
 		end)
 	end
-end)
-
-test("variant box only: box with an empty cell, no recipe of ours", function()
-	local _, _, _, _, lru = loadScript(variantEnv(2))
-	local box = lru.LineCargoDisplay(STOP)
-	eq(box.kind, "Component")
-	eq(box.layout.children[1].kind, "Component")
-	eq(box.layout.children[1].recipe, nil)
-	eq(box.layout.children[2].base, true)
 end)
 
 test("recipes registered once when the chunk runs twice in one GUI state", function()
@@ -1141,12 +1126,6 @@ test("normal: each row render reads the game value again (checkbox toggled)", fu
 	eq(lru.LineCargoDisplay(p).layout.children[1].kind, "ImageView", "next render shows it")
 end)
 
-test("variant box only: empty cell whatever the value", function()
-	local _, _, _, _, lru = loadScript(variantEnv(2, { lines = { [7] = lineWith(true, true) } }))
-	local cell = lru.LineCargoDisplay(STOP).layout.children[1]
-	eq(cell.kind, "Component"); eq(cell.recipe, nil)
-end)
-
 test("normal: a failure building the cell falls back to the bare base node", function()
 	local _, logs, G, _, lru = loadScript(rowEnv())
 	local builtin = G.__modules["::/gui/main/builtin.lua"]
@@ -1158,72 +1137,11 @@ test("normal: a failure building the cell falls back to the bare base node", fun
 	eq(n, 1)
 end)
 
-test("fud.css.lua: cell rule has size and gravity; probe rule size only", function()
+test("fud.css.lua: cell rule has size and gravity; no leftover probe rules", function()
 	local f = assert(io.open(root .. "/content/gui/hummer_force_unload_default/fud.css.lua")); local s = f:read("*a"); f:close()
 	local cell = s:match('"R::LineStopItem !fud%-stop%-icon", (%b{})')
 	assert(cell and cell:find("size") and cell:find("gravity"), "cell rule")
-	local probe = s:match('"R::LineStopItem !fud%-stop%-icon%-probe", (%b{})')
-	assert(probe and not probe:find("gravity") and not probe:find("margin"), "probe rule without gravity/margin")
-end)
-
-test("markerVariantFromParams: 1..5, unknown -> normal", function()
-	for v = 1, 5 do
-		eq(core.markerVariantFromParams({ hummer_force_unload_default = { dev_marker = v } }), v)
-	end
-	for _, v in ipairs({ 0, 6, 2.5, "3" }) do
-		eq(core.markerVariantFromParams({ hummer_force_unload_default = { dev_marker = v } }), core.MARKER_NORMAL)
-	end
-	eq(core.markerVariantFromParams(nil), core.MARKER_NORMAL)
-end)
-
-test("mod.json: dev_marker defaults to Normal, five values with strings in en/ja", function()
-	local f = assert(io.open(root .. "/mod.json")); local s = f:read("*a"); f:close()
-	local block = s:match('"key": "dev_marker".-}')
-	assert(block and block:find('"defaultIndex": 0', 1, true))
-	local n = 0
-	for _ in block:gmatch("hummer_force_unload_default_dev_v%d") do n = n + 1 end
-	eq(n, 5)
-	f = assert(io.open(root .. "/strings.json")); local st = f:read("*a"); f:close()
-	for _, lang in ipairs({ "en", "ja" }) do
-		local b = st:match('"' .. lang .. '"%s*:%s*(%b{})')
-		for i = 1, 5 do assert(b:find('"hummer_force_unload_default_dev_v' .. i .. '"', 1, true), lang .. " v" .. i) end
-	end
-end)
-
-test("probe 3 (gravity): own recipe whose root is the normal empty cell", function()
-	local _, _, _, render, lru = loadScript(variantEnv(3))
-	local cell = lru.LineCargoDisplay(STOP).layout.children[1]
-	eq(cell.recipe, "HummerForceUnloadProbeGravity")
-	local root = render(cell)
-	eq(root.kind, "Component"); eq(root.meta.class, "fud-stop-icon", "the class with gravity + margin")
-	eq(root.meta.tooltip, nil)
-end)
-
-test("probe 4 (tooltip): own recipe whose root is an ImageView with tooltip, on every stop", function()
-	local _, _, _, render, lru = loadScript(variantEnv(4, { lines = { [7] = lineWith(false, false) } }))
-	local root = render(lru.LineCargoDisplay(STOP).layout.children[1])
-	eq(root.kind, "ImageView", "shown even though the stop is off")
-	eq(root.meta.class, "fud-stop-icon-probe", "size-only class")
-	assert(root.meta.tooltip, "tooltip set")
-end)
-
-test("probe 5 (plain): own recipe, size-only class, colour follows the value", function()
-	local _, _, _, render, lru = loadScript(variantEnv(5))
-	local cell = lru.LineCargoDisplay(STOP).layout.children[1]
-	eq(cell.recipe, "HummerForceUnloadProbePlain")
-	eq(render(cell).meta.class, "fud-stop-icon-probe-on", "stop 1 is on")
-	local off = lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7, stopIndex = 0 }).layout.children[1]
-	eq(render(off).meta.class, "fud-stop-icon-probe")
-end)
-
-test("probe recipes are registered once per GUI state", function()
-	local lu, lru = fakeLineUtil(), fakeLineReactUtil()
-	local _, _, G = loadScript({ lineUtil = lu, lineReactUtil = lru, getModParams = function() return {} end })
-	local before = G.__registered.n
-	eq(before, 3, "three probes")
-	loadScript({ lineUtil = lu, lineReactUtil = lru, getModParams = function() return {} end,
-		modules = G.__modules, recipes = G.__recipes, registered = G.__registered })
-	eq(G.__registered.n, before)
+	assert(not s:find("probe", 1, true), "probe rules removed")
 end)
 
 test("a failing icon stops all decoration (no mix of boxed and bare rows)", function()
@@ -1331,6 +1249,15 @@ test("script: passenger slot from cargo_util (id + 1); unreadable -> passengers 
 	G.__modules["::/gui/main/cargo_util.tl"] = { getPassengerCargoTypeId = function() return 0 end }
 	lu.autoLoadConfig({ path = { pit, works } })
 	eq(fu(works), true)
+end)
+
+test("dev_marker is gone: no param, no strings, no recipe registered by the script", function()
+	local f = assert(io.open(root .. "/mod.json")); local m = f:read("*a"); f:close()
+	assert(not m:find("dev_marker", 1, true), "param removed")
+	f = assert(io.open(root .. "/strings.json")); local st = f:read("*a"); f:close()
+	assert(not st:find("_dev_", 1, true), "strings removed")
+	local _, _, G = loadScript(rowEnv())
+	eq(G.__registered.n, 0, "no RegisterRecipe (only the entry plugin, via RegisterPluginRecipe)")
 end)
 
 print(string.format("\n%d passed, %d failed", passes, failures))

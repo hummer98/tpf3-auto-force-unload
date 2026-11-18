@@ -10,14 +10,7 @@
 		"hummer_force_unload_default_icon_param_tip": "On: in the Line Manager's stop list, stops with \"Force Unload All Cargo On Arrival\" switched on get a small unload icon next to their name (on every line, also the ones you configured by hand). Off: no icon.",
 		"hummer_force_unload_default_off": "Off",
 		"hummer_force_unload_default_on": "On",
-		"hummer_force_unload_default_icon_tip": "Force Unload All Cargo On Arrival: On\nUnload cargo even if stocks are full.",
-		"hummer_force_unload_default_dev_name": "[Dev] Stop marker variant",
-		"hummer_force_unload_default_dev_tip": "For testing only; leave at \"Normal\". \"Box with empty cell\" is the form known to work. The three probes rebuild the form that failed (an own recipe), each with one difference, to find its cause; they may reload the GUI.",
-		"hummer_force_unload_default_dev_v1": "Normal",
-		"hummer_force_unload_default_dev_v2": "Box with empty cell",
-		"hummer_force_unload_default_dev_v3": "Probe: recipe, cell class with gravity",
-		"hummer_force_unload_default_dev_v4": "Probe: recipe, icon with tooltip",
-		"hummer_force_unload_default_dev_v5": "Probe: recipe, size-only class"
+		"hummer_force_unload_default_icon_tip": "Force Unload All Cargo On Arrival: On\nUnload cargo even if stocks are full."
 	},
 	"ja": {
 		"mod_name": "積み下ろし強制を既定でオン",
@@ -30,13 +23,6 @@
 		"hummer_force_unload_default_icon_param_tip": "オン: 路線マネージャーの停留所一覧で、「到着時にすべての貨物を強制的に積み下ろし」がオンの停留所の名前の横に、小さな積み下ろしのアイコンを出します（手で設定した路線も含め、すべての路線）。オフ: アイコンを出しません。",
 		"hummer_force_unload_default_off": "オフ",
 		"hummer_force_unload_default_on": "オン",
-		"hummer_force_unload_default_icon_tip": "到着時にすべての貨物を強制的に積み下ろし: オン\n在庫が満タンでも貨物を積み下ろす。",
-		"hummer_force_unload_default_dev_name": "［開発用］停留所の印の方式",
-		"hummer_force_unload_default_dev_tip": "試験用です。「通常」のままにしてください。「箱＋空のセル」はゲームで動いた形です。3 つの確認用は、失敗した形（自前のレシピ）を 1 か所ずつ変えて作り直したもので、原因を確かめるためのものです。UI が再読み込みされることがあります。",
-		"hummer_force_unload_default_dev_v1": "通常",
-		"hummer_force_unload_default_dev_v2": "箱＋空のセル",
-		"hummer_force_unload_default_dev_v3": "確認用: レシピ＋gravity 付きのセル",
-		"hummer_force_unload_default_dev_v4": "確認用: レシピ＋ツールチップ付きアイコン",
-		"hummer_force_unload_default_dev_v5": "確認用: レシピ＋size だけのセル"
+		"hummer_force_unload_default_icon_tip": "到着時にすべての貨物を強制的に積み下ろし: オン\n在庫が満タンでも貨物を積み下ろす。"
 	}
 }

@@ -22,15 +22,5 @@ function data()
 		margin = { 0, 2, 0, 0 },
 		gravity = { 0, 0.5 }, -- centred in the row height
 	})
-	-- only for the probes dev_marker 4 and 5 (TOOLTIP, PLAIN): size only;
-	-- dev_marker 3 (GRAVITY) uses the cell rule above
-	a("R::LineStopItem !fud-stop-icon-probe", {
-		size = { 14, 14 },
-	})
-	a("R::LineStopItem !fud-stop-icon-probe-on", {
-		size = { 14, 14 },
-		backgroundColor = { 0.9, 0.6, 0.1, 1 },
-	})
-
 	return result
 end

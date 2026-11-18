@@ -39,20 +39,6 @@
 				"hummer_force_unload_default_on"
 			],
 			"defaultIndex": 1
-		},
-		{
-			"key": "dev_marker",
-			"name": "hummer_force_unload_default_dev_name",
-			"tooltip": "hummer_force_unload_default_dev_tip",
-			"uiType": "ComboBox",
-			"values": [
-				"hummer_force_unload_default_dev_v1",
-				"hummer_force_unload_default_dev_v2",
-				"hummer_force_unload_default_dev_v3",
-				"hummer_force_unload_default_dev_v4",
-				"hummer_force_unload_default_dev_v5"
-			],
-			"defaultIndex": 0
 		}
 	]
 }

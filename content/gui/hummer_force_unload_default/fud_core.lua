@@ -27,16 +27,6 @@ M.DEFAULT_MODE = M.MODE_ALL
 M.ICON_OFF = 1
 M.ICON_ON = 2
 
--- Values of the development param "dev_marker" (same indexing). Default
--- and anything unknown: MARKER_NORMAL. The probes put the marker in a
--- recipe of its own (the form that failed in game) and differ in one thing
--- each, to tell the cause apart.
-M.MARKER_NORMAL = 1         -- box { icon or empty cell, built in the row's render, base node }
-M.MARKER_BOX_ONLY = 2       -- box { empty cell, base node }: the form that worked in game
-M.MARKER_PROBE_GRAVITY = 3  -- recipe root: empty Component, class with gravity + margin
-M.MARKER_PROBE_TOOLTIP = 4  -- recipe root: ImageView with tooltip, class with size only
-M.MARKER_PROBE_PLAIN = 5    -- recipe root: empty Component, class with size only
-
 -- Marker field on the line_util table: the GUI may load the entry script
 -- more than once, and a second wrap would run the post-processing twice and
 -- keep a stale closure in the chain.
@@ -58,15 +48,6 @@ function M.iconFromParams(all)
 	local mine = type(all) == "table" and all[M.MOD_ID] or nil
 	local v = type(mine) == "table" and mine.stop_icon or nil
 	return v ~= M.ICON_OFF
-end
-
-function M.markerVariantFromParams(all)
-	local mine = type(all) == "table" and all[M.MOD_ID] or nil
-	local v = type(mine) == "table" and mine.dev_marker or nil
-	if type(v) == "number" and v >= M.MARKER_BOX_ONLY and v <= M.MARKER_PROBE_PLAIN and v % 1 == 0 then
-		return v
-	end
-	return M.MARKER_NORMAL
 end
 
 -- true when the load list has at least one cargo type (passengers count)
