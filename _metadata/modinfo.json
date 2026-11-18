@@ -1,0 +1,14 @@
+{
+    "authors": [
+        {
+            "name": "hummer",
+            "role": "CREATOR"
+        }
+    ],
+    "description": "[English] Force Unload by Default\nTurns on \"Force Unload All Cargo On Arrival\" at line stops where nothing is loaded, and turns it off where something (passengers included) is loaded, whenever the line manager sets up a line's load configuration automatically. Lines whose cargo settings you changed by hand are left alone.\n\n[日本語] 積み下ろし強制を既定でオン\n路線マネージャーが路線の積み込む貨物を自動で決めるとき、積み込みが一つもない停留所では「到着時にすべての貨物を強制的に積み下ろし」をオンに、積み込みのある停留所（旅客を含む）ではオフにします。積み込む貨物などを手で変えた路線には触りません。",
+    "name": "Force Unload by Default / 積み下ろし強制を既定でオン",
+    "summary": "Force unload on at unload-only stops, off where cargo is loaded. / 下ろすだけの停留所で積み下ろし強制をオン、積み込みのある停留所ではオフ。",
+    "tags": [
+        "Script Mod"
+    ]
+}

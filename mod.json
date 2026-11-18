@@ -1,0 +1,27 @@
+{
+	"modId": "hummer_force_unload_default",
+	"revision": 1,
+	"severityAdd": "None",
+	"severityRemove": "None",
+	"visible": true,
+	"cosmetic": false,
+	"dependencies": null,
+	"incompatibilities": null,
+	"options": null,
+	"preRunScript": { "fileName": "" },
+	"runScript": { "fileName": "" },
+	"postRunScript": { "fileName": "" },
+	"params": [
+		{
+			"key": "mode",
+			"name": "hummer_force_unload_default_mode_name",
+			"tooltip": "hummer_force_unload_default_mode_tip",
+			"uiType": "Button",
+			"values": [
+				"hummer_force_unload_default_mode_all",
+				"hummer_force_unload_default_mode_new"
+			],
+			"defaultIndex": 0
+		}
+	]
+}
