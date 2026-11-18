@@ -22,9 +22,15 @@ function data()
 		margin = { 0, 2, 0, 0 },
 		gravity = { 0, 0.5 }, -- centred in the row height
 	})
-	-- only for the development variant MARKER_LEGACY
+	-- only for the development variant MARKER_LEGACY: the first version's
+	-- rules, unchanged, so that variant rebuilds it faithfully
 	a("R::LineStopItem !fud-stop-icon-slot", {
+		gravity = { 0, -1 },
 		size = { 16, -1 },
+		margin = { 0, 2, 0, 0 },
+	})
+	a("R::LineStopItem ImageView!fud-stop-icon-legacy", {
+		size = { 14, 14 },
 	})
 
 	return result

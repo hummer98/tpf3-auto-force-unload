@@ -136,9 +136,9 @@ local function placeholder()
 	return builtin.Component{ meta = { class = "fud-stop-icon" } }
 end
 
-local function iconView()
+local function iconView(class)
 	return builtin.ImageView{
-		meta = { class = "fud-stop-icon", tooltip = tooltipText() },
+		meta = { class = class or "fud-stop-icon", tooltip = tooltipText() },
 		path = ICON_PATH,
 		scaling = builtin.type.ImageViewScaling.AutoFit,
 	}
@@ -166,13 +166,13 @@ if not shared.StopIcon then
 				on = onState:old() == true
 			end
 			if params.legacy then
-				-- MARKER_LEGACY: the first version's shape, kept only to
-				-- confirm the cause in game
+				-- MARKER_LEGACY: the first version's shape and CSS, kept only
+				-- to confirm the cause in game (unlike then, inside this pcall)
 				return builtin.Component{
 					meta = { class = "fud-stop-icon-slot" },
 					layout = builtin.FloatingLayout{
 						children = {
-							on and builtin.FloatingLayoutChild{ h = 0.5, v = 0.5, item = iconView() } or nil,
+							on and builtin.FloatingLayoutChild{ h = 0.5, v = 0.5, item = iconView("fud-stop-icon-legacy") } or nil,
 						},
 					},
 				}
@@ -209,13 +209,21 @@ local function decorate(node, params)
 			legacy = variant == core.MARKER_LEGACY,
 		}
 	end
-	return builtin.Component{
-		meta = { class = "fud-stop-cargo-box" },
-		layout = builtin.BoxLayout{
-			orientation = builtin.type.Orientation.Horizontal,
-			children = { marker, node },
-		},
+	-- Once node is a child of the box it must not be handed back alone (it
+	-- would get a second parent in the row), so a failure from here on
+	-- returns the box, and only failures before this point fall back to the
+	-- bare node (core.installIcon).
+	local box = builtin.BoxLayout{
+		orientation = builtin.type.Orientation.Horizontal,
+		children = { marker, node },
 	}
+	local ok, wrapped = pcall(builtin.Component, {
+		meta = { class = "fud-stop-cargo-box" },
+		layout = box,
+	})
+	if ok then return wrapped end
+	markBroken("the marker box", wrapped)
+	return box
 end
 
 local function markerEnabled()

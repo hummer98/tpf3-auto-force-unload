@@ -1155,5 +1155,40 @@ test("recipes registered once when the chunk runs twice in one GUI state", funct
 	eq(e2.EntryPlugin, e1.EntryPlugin, "same plugin recipe exported")
 end)
 
+test("decorate: a failure after the box holds the base node returns the box, not the node", function()
+	local env = rowEnv()
+	local _, logs, G, _, lru = loadScript(env)
+	local builtin = G.__modules["::/gui/main/builtin.lua"]
+	local realComponent = builtin.Component
+	builtin.Component = function(p)
+		if p.meta and p.meta.class == "fud-stop-cargo-box" then error("component failed") end
+		return realComponent(p)
+	end
+	local r = lru.LineCargoDisplay(STOP)
+	eq(r.kind, "BoxLayout", "the box that already holds the node")
+	eq(r.children[2].base, true)
+	local n = 0
+	for _, m in ipairs(logs) do if m:find("stop marker disabled after a failure in the marker box", 1, true) then n = n + 1 end end
+	eq(n, 1)
+	eq(lru.LineCargoDisplay(STOP).base, true, "later rows undecorated")
+end)
+
+test("a line with marker on and off rows: icon and empty cell side by side", function()
+	local _, _, _, render, lru = loadScript(rowEnv({ lines = { [7] = lineWith(false, true, false) } }))
+	local kinds = {}
+	for i = 0, 2 do
+		local cell = render(lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7, stopIndex = i }).layout.children[1])
+		kinds[#kinds + 1] = cell.kind
+		eq(cell.meta.class, "fud-stop-icon")
+	end
+	eq(table.concat(kinds, ","), "Component,ImageView,Component")
+end)
+
+test("variant legacy uses the first version's icon class (its own CSS rule)", function()
+	local _, _, _, render, lru = loadScript(variantEnv(5))
+	local icon = render(lru.LineCargoDisplay(STOP).layout.children[1])
+	eq(icon.layout.children[1].item.meta.class, "fud-stop-icon-legacy")
+end)
+
 print(string.format("\n%d passed, %d failed", passes, failures))
 os.exit(failures == 0 and 0 or 1)
