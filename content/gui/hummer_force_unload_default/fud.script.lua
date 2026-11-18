@@ -34,7 +34,6 @@
 local react = ug_require "::/gui/main/react.lua"
 local builtin = ug_require "::/gui/main/builtin.lua"
 local mod_entry_point = ug_require "::/gui/main/mod_entry_point.tl"
-local engine_react_util = ug_require "::/gui/main/engine_react_util.tl"
 local core = require "hummer_force_unload_default::/gui/hummer_force_unload_default/fud_core.lua"
 
 local function log(msg)
@@ -104,10 +103,8 @@ if type(shared) ~= "table" then
 end
 
 -- Development switch for the stop marker (param dev_marker, default 1 =
--- the shipped variant). It exists to narrow down a GUI failure in game
--- (2026-11-18: "ReactFramework::Step() failed" as soon as a stop row was
--- decorated, with no Lua message); see core.MARKER_* for what each variant
--- leaves out. Read once, like the marker param.
+-- the shipped form). Kept for one more round of in-game checks; see
+-- core.MARKER_* for the variants. Read once, like the marker param.
 local markerVariant = nil
 local function getMarkerVariant()
 	if markerVariant ~= nil then return markerVariant end
@@ -117,12 +114,9 @@ local function getMarkerVariant()
 	return markerVariant
 end
 
--- Errors inside a recipe body are not reported by the engine (only
--- "Step() failed" and a GUI reload), so the marker's own code runs in
--- pcall, and after the first failure the stop rows are no longer decorated
--- at all: the base row is drawn as without this mod, and the half-built
--- marker is unmounted instead of being rendered again with a different
--- set of hooks.
+-- After a failure in our part of the row the stop rows are no longer
+-- decorated for the rest of the session: the base row is drawn as without
+-- this mod. Logged once.
 local markerBroken = false
 local function markBroken(where, err)
 	if markerBroken then return end
@@ -136,78 +130,49 @@ local function placeholder()
 	return builtin.Component{ meta = { class = "fud-stop-icon" } }
 end
 
-local function iconView(class)
+local function iconView()
 	return builtin.ImageView{
-		meta = { class = class or "fud-stop-icon", tooltip = tooltipText() },
+		meta = { class = "fud-stop-icon", tooltip = tooltipText() },
 		path = ICON_PATH,
 		scaling = builtin.type.ImageViewScaling.AutoFit,
 	}
 end
 
--- One per stop row: the icon when forceUnload is on, else an empty cell
--- of the same size, so the cargo icons of all rows stay in one column. A
--- leaf in both cases, shaped like the base's own cells: the first version
--- put a FloatingLayout here that had no child at all on stops without the
--- marker, a shape the base never builds, and that version failed in game
--- on such rows (the leading suspect; dev_marker 5 rebuilds it to confirm).
--- The value comes from the line in the game (where the cargo filter window
--- commits the checkbox), re-read on the step timer, so toggling the
--- checkbox shows up by itself.
-if not shared.StopIcon then
-	shared.StopIcon = react.RegisterRecipe("HummerForceUnloadStopIcon", function(params)
-		local ok, node = pcall(function()
-			local on
-			if params.timer == false then
-				on = readStop(params.lineEntity, params.stopIndex)
-			else
-				local onState = engine_react_util.useStepStateTimer(function()
-					return readStop(params.lineEntity, params.stopIndex)
-				end, 0.5)
-				on = onState:old() == true
-			end
-			if params.legacy then
-				-- MARKER_LEGACY: the first version's shape and CSS, kept only
-				-- to confirm the cause in game (unlike then, inside this pcall)
-				return builtin.Component{
-					meta = { class = "fud-stop-icon-slot" },
-					layout = builtin.FloatingLayout{
-						children = {
-							on and builtin.FloatingLayoutChild{ h = 0.5, v = 0.5, item = iconView("fud-stop-icon-legacy") } or nil,
-						},
-					},
-				}
-			end
-			return on and iconView() or placeholder()
-		end)
-		if ok then return node end
-		markBroken("the marker recipe", node)
-		return placeholder()
+-- MARKER_PROBE only: the marker as a recipe of its own, the form that
+-- failed in game (2026-11-18: dev_marker 1 and 3 of the previous version
+-- failed with "ReactFramework::Step() failed", the box with a plain empty
+-- cell did not). Its root carries a class with size only, no gravity or
+-- margin, to test whether those rules on a recipe's root were the cause.
+-- Registered at load like the base's recipes, once per GUI state.
+if not shared.ProbeIcon then
+	shared.ProbeIcon = react.RegisterRecipe("HummerForceUnloadStopIconProbe", function(params)
+		local on = readStop(params.lineEntity, params.stopIndex)
+		return builtin.Component{ meta = { class = on and "fud-stop-icon-probe-on" or "fud-stop-icon-probe" } }
 	end)
 end
-local ForceUnloadStopIcon = shared.StopIcon
+local ProbeIcon = shared.ProbeIcon
 
--- A classed Component around the box: a bare BoxLayout takes no style, and
--- the base stretches the cargo display to the row height
--- (R::LineCargoDisplay gravity), which this wrapper must pass on
--- (fud.css.lua).
+-- The marker is no recipe of its own: an own recipe here made the line
+-- manager's GUI step fail in game (see above), while plain builtin nodes
+-- next to the base node worked. So the cell is decided here, while the stop
+-- row (LineStopItem) renders, and placed directly: the icon when the stop's
+-- forceUnload is on, else an empty cell of the same size, so the cargo
+-- icons of all rows stay in one column. No hooks: this runs inside the
+-- base recipe, whose hook order must not change.
+-- Freshness: the row renders again when the manager's line state changes,
+-- which it takes from the game every step (manager_window.tl
+-- reactLineState); the cargo filter window commits the checkbox to the game
+-- (makeLineUpdateCmd), so the next render here reads the new value. One
+-- LINE read per row render, as the row's own cargo display does per step.
 local function decorate(node, params)
 	local variant = getMarkerVariant()
-	if variant == core.MARKER_PASSTHROUGH then return node end
 	local marker
-	if variant == core.MARKER_BARE_BOX then
-		return builtin.BoxLayout{
-			orientation = builtin.type.Orientation.Horizontal,
-			children = { placeholder(), node },
-		}
-	elseif variant == core.MARKER_BOX_ONLY then
+	if variant == core.MARKER_BOX_ONLY then
 		marker = placeholder()
+	elseif variant == core.MARKER_PROBE then
+		marker = ProbeIcon{ lineEntity = params.lineEntity, stopIndex = params.stopIndex }
 	else
-		marker = ForceUnloadStopIcon{
-			lineEntity = params.lineEntity,
-			stopIndex = params.stopIndex,
-			timer = variant ~= core.MARKER_NO_TIMER,
-			legacy = variant == core.MARKER_LEGACY,
-		}
+		marker = readStop(params.lineEntity, params.stopIndex) and iconView() or placeholder()
 	end
 	-- Once node is a child of the box it must not be handed back alone (it
 	-- would get a second parent in the row), so a failure from here on
