@@ -91,48 +91,135 @@ local function readStop(lineEntity, stopIndex)
 	return ok and on == true
 end
 
--- One per stop row. The slot always takes its width, so the cargo icons of
--- all rows stay in one column whether the marker shows or not. The value
--- comes from the line in the game (where the cargo filter window commits
--- the checkbox), re-read on the step timer like the base's own cargo
--- display of the same row, so toggling the checkbox shows up by itself.
-local ForceUnloadStopIcon = react.RegisterRecipe("HummerForceUnloadStopIcon", function(params)
-	local onState = engine_react_util.useStepStateTimer(function()
-		return readStop(params.lineEntity, params.stopIndex)
-	end, 0.5)
-	local on = onState:old() == true
-	return builtin.Component{
-		meta = { class = "fud-stop-icon-slot" },
-		layout = builtin.FloatingLayout{
-			children = {
-				on and builtin.FloatingLayoutChild{
-					h = 0.5, v = 0.5,
-					item = builtin.ImageView{
-						meta = { class = "fud-stop-icon", tooltip = tooltipText() },
-						path = ICON_PATH,
-						scaling = builtin.type.ImageViewScaling.AutoFit,
-					},
-				} or nil,
-			},
-		},
+-- Recipes are registered once per GUI state and kept on the cached builtin
+-- module table: this script is named by two resources (replace.res.lua and
+-- entry.res.lua), and if the loader ran the chunk for each, a second
+-- RegisterRecipe under the same name would leave the wrap (installed by the
+-- first run) pointing at a recipe of the other run.
+local SHARED_KEY = "__hummer_force_unload_default_recipes"
+local shared = builtin[SHARED_KEY]
+if type(shared) ~= "table" then
+	shared = {}
+	builtin[SHARED_KEY] = shared
+end
+
+-- Development switch for the stop marker (param dev_marker, default 1 =
+-- the shipped variant). It exists to narrow down a GUI failure in game
+-- (2026-11-18: "ReactFramework::Step() failed" as soon as a stop row was
+-- decorated, with no Lua message); see core.MARKER_* for what each variant
+-- leaves out. Read once, like the marker param.
+local markerVariant = nil
+local function getMarkerVariant()
+	if markerVariant ~= nil then return markerVariant end
+	local ok, all = pcall(function() return api.engine.config.getModParams() end)
+	if not ok or type(all) ~= "table" then return core.MARKER_NORMAL end
+	markerVariant = core.markerVariantFromParams(all)
+	return markerVariant
+end
+
+-- Errors inside a recipe body are not reported by the engine (only
+-- "Step() failed" and a GUI reload), so the marker's own code runs in
+-- pcall, and after the first failure the stop rows are no longer decorated
+-- at all: the base row is drawn as without this mod, and the half-built
+-- marker is unmounted instead of being rendered again with a different
+-- set of hooks.
+local markerBroken = false
+local function markBroken(where, err)
+	if markerBroken then return end
+	markerBroken = true
+	log("stop marker disabled after a failure in " .. where .. ": " .. tostring(err))
+end
+
+local function placeholder()
+	-- a Component with only a class is what the base uses as an empty
+	-- cell next to cargo icons (line_react_util.tl "cargo-placeholder")
+	return builtin.Component{ meta = { class = "fud-stop-icon" } }
+end
+
+local function iconView()
+	return builtin.ImageView{
+		meta = { class = "fud-stop-icon", tooltip = tooltipText() },
+		path = ICON_PATH,
+		scaling = builtin.type.ImageViewScaling.AutoFit,
 	}
-end)
+end
+
+-- One per stop row: the icon when forceUnload is on, else an empty cell
+-- of the same size, so the cargo icons of all rows stay in one column. A
+-- leaf in both cases, shaped like the base's own cells: the first version
+-- put a FloatingLayout here that had no child at all on stops without the
+-- marker, a shape the base never builds, and that version failed in game
+-- on such rows (the leading suspect; dev_marker 5 rebuilds it to confirm).
+-- The value comes from the line in the game (where the cargo filter window
+-- commits the checkbox), re-read on the step timer, so toggling the
+-- checkbox shows up by itself.
+if not shared.StopIcon then
+	shared.StopIcon = react.RegisterRecipe("HummerForceUnloadStopIcon", function(params)
+		local ok, node = pcall(function()
+			local on
+			if params.timer == false then
+				on = readStop(params.lineEntity, params.stopIndex)
+			else
+				local onState = engine_react_util.useStepStateTimer(function()
+					return readStop(params.lineEntity, params.stopIndex)
+				end, 0.5)
+				on = onState:old() == true
+			end
+			if params.legacy then
+				-- MARKER_LEGACY: the first version's shape, kept only to
+				-- confirm the cause in game
+				return builtin.Component{
+					meta = { class = "fud-stop-icon-slot" },
+					layout = builtin.FloatingLayout{
+						children = {
+							on and builtin.FloatingLayoutChild{ h = 0.5, v = 0.5, item = iconView() } or nil,
+						},
+					},
+				}
+			end
+			return on and iconView() or placeholder()
+		end)
+		if ok then return node end
+		markBroken("the marker recipe", node)
+		return placeholder()
+	end)
+end
+local ForceUnloadStopIcon = shared.StopIcon
 
 -- A classed Component around the box: a bare BoxLayout takes no style, and
 -- the base stretches the cargo display to the row height
 -- (R::LineCargoDisplay gravity), which this wrapper must pass on
 -- (fud.css.lua).
 local function decorate(node, params)
+	local variant = getMarkerVariant()
+	if variant == core.MARKER_PASSTHROUGH then return node end
+	local marker
+	if variant == core.MARKER_BARE_BOX then
+		return builtin.BoxLayout{
+			orientation = builtin.type.Orientation.Horizontal,
+			children = { placeholder(), node },
+		}
+	elseif variant == core.MARKER_BOX_ONLY then
+		marker = placeholder()
+	else
+		marker = ForceUnloadStopIcon{
+			lineEntity = params.lineEntity,
+			stopIndex = params.stopIndex,
+			timer = variant ~= core.MARKER_NO_TIMER,
+			legacy = variant == core.MARKER_LEGACY,
+		}
+	end
 	return builtin.Component{
 		meta = { class = "fud-stop-cargo-box" },
 		layout = builtin.BoxLayout{
 			orientation = builtin.type.Orientation.Horizontal,
-			children = {
-				ForceUnloadStopIcon{ lineEntity = params.lineEntity, stopIndex = params.stopIndex },
-				node,
-			},
+			children = { marker, node },
 		},
 	}
+end
+
+local function markerEnabled()
+	return not markerBroken and isIconEnabled()
 end
 
 local function installIcon()
@@ -144,7 +231,7 @@ local function installIcon()
 	if type(line_react_util) == "table" and line_react_util[core.ICON_GUARD_KEY] then
 		return true
 	end
-	local okInst, result = pcall(core.installIcon, line_react_util, { enabled = isIconEnabled, decorate = decorate, log = log })
+	local okInst, result = pcall(core.installIcon, line_react_util, { enabled = markerEnabled, decorate = decorate, log = log })
 	if not okInst then
 		log("wrapping LineCargoDisplay failed: " .. tostring(result))
 		return false
@@ -169,9 +256,12 @@ local function install()
 	return result and "new" or false
 end
 
-local EntryPlugin = react.RegisterPluginRecipe(mod_entry_point.ModEntryPointExtension, "HummerForceUnloadDefaultEntry", function()
-	return builtin.BoxLayout{ children = {} }
-end)
+if not shared.EntryPlugin then
+	shared.EntryPlugin = react.RegisterPluginRecipe(mod_entry_point.ModEntryPointExtension, "HummerForceUnloadDefaultEntry", function()
+		return builtin.BoxLayout{ children = {} }
+	end)
+end
+local EntryPlugin = shared.EntryPlugin
 
 -- doReplace of replace.res.lua: the wraps are already in (data() ran for
 -- this resource); only the replacement api is adjusted, see

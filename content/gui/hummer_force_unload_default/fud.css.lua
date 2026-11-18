@@ -15,13 +15,16 @@ function data()
 	a("R::LineStopItem !fud-stop-cargo-box", {
 		gravity = { 0, -1 },
 	})
-	a("R::LineStopItem !fud-stop-icon-slot", {
-		gravity = { 0, -1 },
-		size = { 16, -1 },
-		margin = { 0, 2, 0, 0 },
-	})
-	a("R::LineStopItem ImageView!fud-stop-icon", {
+	-- the marker cell: an ImageView (on) or an empty Component (off), the
+	-- same size either way so the cargo icons stay in one column
+	a("R::LineStopItem !fud-stop-icon", {
 		size = { 14, 14 },
+		margin = { 0, 2, 0, 0 },
+		gravity = { 0, 0.5 }, -- centred in the row height
+	})
+	-- only for the development variant MARKER_LEGACY
+	a("R::LineStopItem !fud-stop-icon-slot", {
+		size = { 16, -1 },
 	})
 
 	return result

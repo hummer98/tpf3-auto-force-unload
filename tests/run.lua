@@ -438,13 +438,14 @@ local function loadScript(env)
 	local logs = {}
 	local lineUtil = env.lineUtil
 	local lineReactUtil = env.lineReactUtil or fakeLineReactUtil()
-	local recipes = {}
+	local recipes = env.recipes or {}
+	local registered = env.registered or { n = 0 }
 	local timers = {}
 	local currentRecipe = nil
 	local function widget(kind) return function(p) p = p or {}; p.kind = kind; return p end end
 	-- one table per module, as ug_require caches them, so a test can wrap
 	-- a field the script also uses
-	local modules = {
+	local modules = env.modules or {
 		["::/gui/main/react.lua"] = {
 			RegisterPluginRecipe = function(ep, name, fn)
 				assert(ep == "EP", "extension point from mod_entry_point")
@@ -453,6 +454,7 @@ local function loadScript(env)
 			-- a recipe call returns a node that remembers its params;
 			-- render(node) runs the recipe function on them
 			RegisterRecipe = function(name, fn)
+				registered.n = registered.n + 1
 				recipes[name] = fn
 				return function(p) return { recipe = name, params = p } end
 			end,
@@ -507,6 +509,7 @@ local function loadScript(env)
 		return recipes[node.recipe](node.params)
 	end
 	G.__timers = timers
+	G.__modules, G.__recipes, G.__registered = modules, recipes, registered
 	G.__setRecipe = function(name) currentRecipe = name end
 	return exports, logs, G, render, lineReactUtil
 end
@@ -766,28 +769,27 @@ test("script marker: forceUnload on -> icon with path and tooltip", function()
 	local translate = function(k) if k == "hummer_force_unload_default_icon_tip" then return "TIP" end return k end
 	local _, _, _, render, lru = loadScript(rowEnv({ translate = translate }))
 	local icon = render(lru.LineCargoDisplay(STOP).layout.children[1])
-	eq(icon.meta.class, "fud-stop-icon-slot")
-	local child = icon.layout.children[1]
-	assert(child, "icon expected")
-	eq(child.item.kind, "ImageView")
-	eq(child.item.path, "::/gui/line_vehicle_mgmt/icons/symbol_cargo_arrow_up_send.tga")
-	eq(child.item.meta.tooltip, "TIP")
+	eq(icon.kind, "ImageView", "a leaf, no layout of ours around it")
+	eq(icon.meta.class, "fud-stop-icon")
+	eq(icon.path, "::/gui/line_vehicle_mgmt/icons/symbol_cargo_arrow_up_send.tga")
+	eq(icon.meta.tooltip, "TIP")
 end)
 
 test("script marker: forceUnload off -> empty slot (keeps the column)", function()
 	local _, _, _, render, lru = loadScript(rowEnv())
 	local p = { stopCargoDisplay = true, lineEntity = 7, stopIndex = 0 }
 	local icon = render(lru.LineCargoDisplay(p).layout.children[1])
-	eq(icon.meta.class, "fud-stop-icon-slot")
-	eq(icon.layout.children[1], nil)
+	eq(icon.kind, "Component")
+	eq(icon.meta.class, "fud-stop-icon", "same class (size) as the icon")
+	eq(icon.layout, nil, "an empty cell: no layout, in particular no childless FloatingLayout")
 end)
 
 test("script marker: missing line / stop -> empty slot, no error", function()
 	local _, logs, _, render, lru = loadScript(rowEnv())
 	local icon = render(lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 99, stopIndex = 0 }).layout.children[1])
-	eq(icon.layout.children[1], nil)
+	eq(icon.kind, "Component")
 	icon = render(lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7, stopIndex = 9 }).layout.children[1])
-	eq(icon.layout.children[1], nil)
+	eq(icon.kind, "Component")
 	eq(successLogs(logs), #logs, "only the load-time lines")
 end)
 
@@ -804,7 +806,7 @@ test("script marker: shown on customFilters lines too (display only reads)", fun
 	lines[7].customFilters = true
 	local _, _, _, render, lru = loadScript(rowEnv({ lines = lines }))
 	local icon = render(lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7, stopIndex = 0 }).layout.children[1])
-	assert(icon.layout.children[1], "icon expected")
+	eq(icon.kind, "ImageView", "icon expected")
 end)
 
 test("script marker: switched off in the mod settings -> base node only", function()
@@ -828,7 +830,7 @@ test("script marker: tooltip falls back to English when _ is missing or returns 
 	for _, tr in ipairs({ false, function(k) return k end }) do
 		local _, _, _, render, lru = loadScript(rowEnv({ translate = tr or nil }))
 		local icon = render(lru.LineCargoDisplay(STOP).layout.children[1])
-		assert(icon.layout.children[1].item.meta.tooltip:find("^Force Unload All Cargo On Arrival: On"))
+		assert(icon.meta.tooltip:find("^Force Unload All Cargo On Arrival: On"))
 	end
 end)
 
@@ -1026,13 +1028,131 @@ test("script marker: re-read on the step timer (interval 0.5) follows the checkb
 	local _, _, G, render, lru = loadScript(rowEnv({ lines = lines }))
 	local p = { stopCargoDisplay = true, lineEntity = 7, stopIndex = 0 }
 	local slot = lru.LineCargoDisplay(p).layout.children[1]
-	eq(render(slot).layout.children[1], nil)
+	eq(render(slot).kind, "Component")
 	local timer = G.__timers[#G.__timers]
 	eq(timer.state.interval, 0.5)
 	lines[7].stops[1].stopConfig.forceUnload = true -- the player ticks the box
 	eq(timer.state.old(), false, "unchanged until the timer fires")
 	timer.tick()
 	eq(timer.state.old(), true, "the timer read picks it up (the recipe renders from this state)")
+end)
+
+------------------------------------------------------------------------
+-- GUI failure in game (2026-11-18): marker shape, guards, dev variants
+------------------------------------------------------------------------
+local function variantEnv(v, over)
+	local env = rowEnv(over)
+	env.getModParams = function() return { hummer_force_unload_default = { dev_marker = v } } end
+	return env
+end
+
+-- every node of a tree, recipes rendered
+local function walk(node, render, visit)
+	if type(node) ~= "table" then return end
+	visit(node)
+	if node.recipe then walk(render(node), render, visit) end
+	if node.layout then walk(node.layout, render, visit) end
+	if node.item then walk(node.item, render, visit) end
+	for _, c in pairs(node.children or {}) do walk(c, render, visit) end
+end
+
+test("default marker never builds a FloatingLayout (the shape that failed in game)", function()
+	for _, fu in ipairs({ false, true }) do
+		local _, _, _, render, lru = loadScript(rowEnv({ lines = { [7] = lineWith(fu) } }))
+		walk(lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7, stopIndex = 0 }), render, function(n)
+			assert(n.kind ~= "FloatingLayout" and n.kind ~= "FloatingLayoutChild", "floating layout built")
+		end)
+	end
+end)
+
+test("markerVariantFromParams: 1..6, unknown -> normal", function()
+	for v = 1, 6 do
+		eq(core.markerVariantFromParams({ hummer_force_unload_default = { dev_marker = v } }), v)
+	end
+	eq(core.markerVariantFromParams({ hummer_force_unload_default = { dev_marker = 7 } }), core.MARKER_NORMAL)
+	eq(core.markerVariantFromParams({}), core.MARKER_NORMAL)
+	eq(core.markerVariantFromParams(nil), core.MARKER_NORMAL)
+end)
+
+test("mod.json: dev_marker defaults to Normal, six values with strings in en/ja", function()
+	local f = assert(io.open(root .. "/mod.json")); local s = f:read("*a"); f:close()
+	local block = s:match('"key": "dev_marker".-}')
+	assert(block and block:find('"defaultIndex": 0', 1, true))
+	local n = 0
+	for _ in block:gmatch("hummer_force_unload_default_dev_v%d") do n = n + 1 end
+	eq(n, 6)
+	f = assert(io.open(root .. "/strings.json")); local st = f:read("*a"); f:close()
+	for _, lang in ipairs({ "en", "ja" }) do
+		local b = st:match('"' .. lang .. '"%s*:%s*(%b{})')
+		for i = 1, 6 do assert(b:find('"hummer_force_unload_default_dev_v' .. i .. '"', 1, true), lang .. " v" .. i) end
+		assert(b:find('"hummer_force_unload_default_dev_name"', 1, true))
+	end
+end)
+
+test("variant box only: box with an empty cell, no recipe of ours", function()
+	local _, _, _, _, lru = loadScript(variantEnv(2))
+	local box = lru.LineCargoDisplay(STOP)
+	eq(box.kind, "Component")
+	eq(box.layout.children[1].kind, "Component")
+	eq(box.layout.children[1].recipe, nil)
+	eq(box.layout.children[2].base, true)
+end)
+
+test("variant no timer: marker recipe reads in render, no step timer", function()
+	local _, _, G, render, lru = loadScript(variantEnv(3))
+	local slot = lru.LineCargoDisplay(STOP).layout.children[1]
+	eq(slot.params.timer, false)
+	eq(render(slot).kind, "ImageView")
+	eq(#G.__timers, 0)
+end)
+
+test("variant pass through: the base node unchanged", function()
+	local _, _, _, _, lru = loadScript(variantEnv(4))
+	eq(lru.LineCargoDisplay(STOP).base, true)
+end)
+
+test("variant legacy: the first version's shape (Component + FloatingLayout)", function()
+	local _, _, _, render, lru = loadScript(variantEnv(5, { lines = { [7] = lineWith(false, false) } }))
+	local icon = render(lru.LineCargoDisplay(STOP).layout.children[1])
+	eq(icon.meta.class, "fud-stop-icon-slot")
+	eq(icon.layout.kind, "FloatingLayout")
+	eq(next(icon.layout.children), nil, "empty when off, as before")
+end)
+
+test("variant bare box: BoxLayout without the classed Component", function()
+	local _, _, _, _, lru = loadScript(variantEnv(6))
+	local box = lru.LineCargoDisplay(STOP)
+	eq(box.kind, "BoxLayout")
+	eq(box.layout, nil)
+	eq(box.children[1].kind, "Component")
+	eq(box.children[2].base, true)
+end)
+
+test("a failing marker recipe: empty cell, logged once, later rows undecorated", function()
+	local env = rowEnv()
+	local _, logs, G, render, lru = loadScript(env)
+	local slot = lru.LineCargoDisplay(STOP).layout.children[1]
+	-- the engine read path blows up inside the recipe (e.g. a hook)
+	G.__modules["::/gui/main/engine_react_util.tl"].useStepStateTimer = function() error("hook failed") end
+	local node = render(slot)
+	eq(node.kind, "Component", "empty cell instead of an error")
+	render(slot)
+	local n = 0
+	for _, m in ipairs(logs) do if m:find("stop marker disabled", 1, true) then n = n + 1 end end
+	eq(n, 1)
+	local r = lru.LineCargoDisplay(STOP)
+	eq(r.base, true, "base row drawn as without the mod")
+	eq(lru.cargoCalls, 2, "base always drawn")
+end)
+
+test("recipes registered once when the chunk runs twice in one GUI state", function()
+	local lu, lru = fakeLineUtil(), fakeLineReactUtil()
+	local e1, _, G = loadScript({ lineUtil = lu, lineReactUtil = lru, getModParams = function() return {} end })
+	local before = G.__registered.n
+	local e2 = loadScript({ lineUtil = lu, lineReactUtil = lru, getModParams = function() return {} end,
+		modules = G.__modules, recipes = G.__recipes, registered = G.__registered })
+	eq(G.__registered.n, before, "no second RegisterRecipe")
+	eq(e2.EntryPlugin, e1.EntryPlugin, "same plugin recipe exported")
 end)
 
 print(string.format("\n%d passed, %d failed", passes, failures))

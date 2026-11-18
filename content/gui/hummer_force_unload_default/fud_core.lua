@@ -27,6 +27,16 @@ M.DEFAULT_MODE = M.MODE_ALL
 M.ICON_OFF = 1
 M.ICON_ON = 2
 
+-- Values of the development param "dev_marker" (same indexing). Each one
+-- leaves out more of the stop marker, to find in game which part a GUI
+-- failure comes from. Default and anything unknown: MARKER_NORMAL.
+M.MARKER_NORMAL = 1      -- box { marker recipe (step timer) -> icon or empty cell, base node }
+M.MARKER_BOX_ONLY = 2    -- box { plain empty cell, base node }: no recipe of ours
+M.MARKER_NO_TIMER = 3    -- as NORMAL, the recipe reads once per render (no hooks)
+M.MARKER_PASSTHROUGH = 4 -- base node unchanged (the wrap still runs)
+M.MARKER_LEGACY = 5      -- the first version's marker (Component + FloatingLayout, empty when off)
+M.MARKER_BARE_BOX = 6    -- as BOX_ONLY, without the classed Component around the box
+
 -- Marker field on the line_util table: the GUI may load the entry script
 -- more than once, and a second wrap would run the post-processing twice and
 -- keep a stale closure in the chain.
@@ -48,6 +58,16 @@ function M.iconFromParams(all)
 	local mine = type(all) == "table" and all[M.MOD_ID] or nil
 	local v = type(mine) == "table" and mine.stop_icon or nil
 	return v ~= M.ICON_OFF
+end
+
+function M.markerVariantFromParams(all)
+	local mine = type(all) == "table" and all[M.MOD_ID] or nil
+	local v = type(mine) == "table" and mine.dev_marker or nil
+	if v == M.MARKER_BOX_ONLY or v == M.MARKER_NO_TIMER or v == M.MARKER_PASSTHROUGH or v == M.MARKER_LEGACY
+		or v == M.MARKER_BARE_BOX then
+		return v
+	end
+	return M.MARKER_NORMAL
 end
 
 -- true when the load list has at least one cargo type (passengers count)
