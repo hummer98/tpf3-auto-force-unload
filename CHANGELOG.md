@@ -8,6 +8,8 @@ here. The format follows
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-22
+
 ### Fixed
 - The mod's name in the game's mod list and on mod.io is now English only
   and within mod.io's 50-character limit, so the in-game uploader accepts it.
