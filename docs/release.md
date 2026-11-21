@@ -53,6 +53,8 @@ python3 tools/release.py --github-only        # HEAD のタグの push と GitHu
    - リモートが無いとき、または `--local-only` のときは、zip まで作って止まり、しなかったコマンドを出す。あとで HEAD がタグのコミットにある状態で `--github-only` を走らせると、zip を作り直してタグの push と release だけをする。
    - リモートがあって `gh` が無いときは、何も書く前に止まる。
    - コミットの後にタグが作れなかったときは、出てくる `git tag -a …` を手で実行し、`--github-only` で続ける。
+   - タグの後の push か `gh` が失敗したとき（GitHub の master が先に進んでいた、ログインが切れていた等）は、原因を直し、HEAD がタグのコミットにある状態で `--github-only` を走らせる（タグの push と release）。枝は `git push github HEAD:master` で出す。同じ版で cut し直すと、タグがあるので止まる。
+   - release の本文では、`CHANGELOG.md` の折り返した行を項目ごとに1行につなげる（GitHub の release の本文は、改行を改行のまま出すことがあるため）。mod.io の変更の欄には `--dry-run` の `notes:` の後の文を写す。
 
 ## 最初の公開（1.0.0）
 
@@ -68,6 +70,7 @@ python3 tools/release.py --github-only        # HEAD のタグの push と GitHu
    ```sh
    git pull --ff-only <開発用の clone> master
    ```
+   pull ではタグは来ないが、テストも `stage.py` もタグを見ないので、それでよい。
 3. 同じ `local/mods/` のコピーで、ステージングに写す。
    ```sh
    python3 tools/stage.py --first-upload
@@ -89,5 +92,5 @@ python3 tools/release.py --github-only        # HEAD のタグの push と GitHu
    - `stage.py` は、`mod.json` の revision がアップロード済みのもの（ステージングのコピーの `mod.json`）より大きいことを求める。revision は版から決まるので、release を出せば必ず上がる。逆に、release を出さずに直したものは revision が同じなので止まる。文の直しだけでも、mod.io に上げるなら patch を出す。
    - `--keep-revision` は、revision を上げずに mod.io のデータだけを上げ直すとき（同じ版の上げ直し）に限る。
    - `mod.io_fileid.txt` が無いと止まる（2つ目のページができるのを防ぐため）。
-5. ゲームの中で MOD hub > My mods > この MOD > Revalidate、変更の欄に `CHANGELOG.md` のその版の節を写し、Update。
+5. ゲームの中で MOD hub > My mods > この MOD > Revalidate、変更の欄にその版の節（`--github-only --dry-run` の `notes:` の後の文）を写し、Update。
 6. 説明文が変わったら、mod.io の Web のページも直す。README の mod.io の URL は、最初の公開の後は変わらない。

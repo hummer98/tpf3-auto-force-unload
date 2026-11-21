@@ -493,6 +493,8 @@ class FlowTest(unittest.TestCase):
         self.rel().github_only(dry_run=True)
         self.assertEqual(self.cmds, [])
         self.assertIn("would then run", self.output())
+        self.assertTrue(self.output().endswith(
+            "notes:\n### Added\n- New thing.\n\n### Fixed\n- Old bug."))
         # a detached checkout of the tag: only the tag goes up
         self.git("checkout", "-q", "--detach", "v0.9.0")
         self.rel().github_only()

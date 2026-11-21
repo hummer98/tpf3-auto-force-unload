@@ -537,6 +537,9 @@ class Release:
             self.out("built " + os.path.relpath(asset, self.root))
         self.report_github(version, notes, asset, remote, branch, url, False,
                            dry_run=dry_run)
+        if dry_run:
+            # the text for the mod.io change log, as the release shows it
+            self.out("notes:\n" + notes)
         return version
 
 
