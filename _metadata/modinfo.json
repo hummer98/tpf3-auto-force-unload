@@ -6,7 +6,7 @@
         }
     ],
     "description": "[English] Auto Force Unload at Drop-off Stops\nTurns on \"Force Unload All Cargo On Arrival\" at line stops that load no cargo (passengers aside), and turns it off at stops that load cargo, whenever the Line Manager sets up a line's load configuration automatically. Lines that carry no cargo at all (passenger lines, a line with a single stop) keep it off everywhere. Lines whose cargo settings you changed by hand are left alone. In the Line Manager's stop list, a small icon marks the stops where it is on.\n\n[日本語] 降ろすだけの駅に積み下ろし強制を自動設定\n路線マネージャーが路線の積み込む貨物を自動で決めるとき、旅客以外の貨物を一つも積まない停留所では「到着時にすべての貨物を強制的に積み下ろし」をオンに、貨物を積む停留所ではオフにします。どの停留所でも貨物を積まない路線（旅客だけの路線、停留所が 1 つの路線）は全部オフのままです。積み込む貨物などを手で変えた路線には触りません。路線マネージャーの停留所一覧では、オンの停留所に小さなアイコンを出します。",
-    "name": "Auto Force Unload at Drop-off Stops / 降ろすだけの駅に積み下ろし強制を自動設定",
+    "name": "Auto Force Unload at Drop-off Stops",
     "summary": "Automatically turns on force unload at stops that only drop off cargo; stops that load cargo keep it off. / 貨物を降ろすだけの駅で積み下ろし強制を自動でオン、貨物を積む駅ではオフ。",
     "tags": [
         "Script Mod"

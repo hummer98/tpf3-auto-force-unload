@@ -44,6 +44,26 @@ class PreflightError(Exception):
     pass
 
 
+# mod.io refuses an upload whose name is longer than 50 characters (code
+# 13009, seen in the in-game uploader on 2026-11-22); 250 for the summary is
+# mod.io's long-standing limit. Counted in characters, not bytes.
+MODINFO_LIMITS = (("name", 50), ("summary", 250))
+
+
+def check_modinfo(info):
+    """Raises PreflightError when _metadata/modinfo.json would be refused by
+    mod.io, so the upload does not fail after the build."""
+    for field, limit in MODINFO_LIMITS:
+        value = info.get(field) if isinstance(info, dict) else None
+        if not isinstance(value, str) or not value:
+            raise PreflightError("_metadata/modinfo.json: %s must be a "
+                                 "non-empty string" % field)
+        if len(value) > limit:
+            raise PreflightError("_metadata/modinfo.json: %s is %d "
+                                 "characters, mod.io allows at most %d"
+                                 % (field, len(value), limit))
+
+
 def run(cmd, root):
     try:
         return subprocess.run(cmd, cwd=root, capture_output=True, text=True)
@@ -58,10 +78,11 @@ def check(root=None):
     runs it on a cut before it commits."""
     root = root or ROOT
     out = []
+    parsed = {}
     for name in ("mod.json", "strings.json", "_metadata/modinfo.json"):
         try:
             with open(os.path.join(root, name), encoding="utf-8") as f:
-                json.load(f)
+                parsed[name] = json.load(f)
         except (OSError, ValueError) as e:
             raise PreflightError("%s: %s" % (name, e))
     # the in-game uploader refuses a mod without a cover, and the mod list
@@ -69,6 +90,7 @@ def check(root=None):
     if not os.path.isfile(os.path.join(root, "_metadata", "0.png")):
         raise PreflightError("_metadata/0.png missing (1920x1080 cover "
                              "image)")
+    check_modinfo(parsed["_metadata/modinfo.json"])
     tests = run(["luajit", "tests/run.lua"], root)
     if tests.returncode != 0:
         raise PreflightError(tests.stdout + tests.stderr

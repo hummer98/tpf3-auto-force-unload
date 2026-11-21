@@ -132,8 +132,9 @@ class StringsTest(unittest.TestCase):
         with open(os.path.join(ROOT, "_metadata", "modinfo.json"),
                   encoding="utf-8") as f:
             info = json.load(f)
-        self.assertEqual(info["name"], "%s / %s" % (s["en"]["mod_name"],
-                                                   s["ja"]["mod_name"]))
+        # the mod.io name is English only: "en / ja" was 58 characters and
+        # mod.io refuses names over 50 (code 13009)
+        self.assertEqual(info["name"], s["en"]["mod_name"])
         self.assertEqual(info["description"],
                          "[English] %s\n%s\n\n[日本語] %s\n%s"
                          % (s["en"]["mod_name"], s["en"]["mod_desc"],

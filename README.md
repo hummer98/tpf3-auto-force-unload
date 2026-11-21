@@ -104,7 +104,7 @@ the stop list** switches it off.
 | `VERSION` | The version (`MAJOR.MINOR.PATCH`); `mod.json`'s revision is MAJOR * 10000 + MINOR * 100 + PATCH |
 | `CHANGELOG.md` | Changes per version ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)); new ones go under `## [Unreleased]` |
 | `strings.json` | Texts in the game's 13 languages; the checkbox, Line Manager, stop and On/Off words are the base game's own |
-| `_metadata/modinfo.json` | Name, summary and description for the game's mod list and the in-game mod.io upload (one text for all languages, so "English / 日本語") |
+| `_metadata/modinfo.json` | Name, summary and description for the game's mod list and the in-game mod.io upload (one text for all languages: the name in English only, at most 50 characters for mod.io; summary and description "English / 日本語") |
 | `_metadata/0.png` | Cover image (required by the in-game uploader) |
 | `docs/modio_description.md` | Description for the mod.io web page |
 | `docs/release.md` | Versions and the release steps (Japanese) |

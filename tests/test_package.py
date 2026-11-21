@@ -1,4 +1,5 @@
 """Tests for tools/package.py: python3 -m unittest discover -s tests"""
+import json
 import os
 import sys
 import tempfile
@@ -82,6 +83,55 @@ class PackageTest(unittest.TestCase):
                     package.preflight()
             run.assert_not_called()
         self.assertIn("0.png", str(cm.exception.code))
+
+    # mod.io refused the 58-character name with code 13009 (2026-11-22)
+    def modinfo(self, **fields):
+        info = {"name": "Mod", "summary": "Summary"}
+        info.update(fields)
+        return {k: v for k, v in info.items() if v is not None}
+
+    def test_modinfo_name_of_50_characters_passes_51_fails(self):
+        package.check_modinfo(self.modinfo(name="a" * 50))
+        with self.assertRaisesRegex(package.PreflightError,
+                                    r"name is 51 characters.*at most 50"):
+            package.check_modinfo(self.modinfo(name="a" * 51))
+
+    def test_modinfo_name_counts_characters_not_bytes(self):
+        name = "降" * 50
+        self.assertGreater(len(name.encode("utf-8")), 50)
+        package.check_modinfo(self.modinfo(name=name))
+
+    def test_modinfo_summary_of_250_characters_passes_251_fails(self):
+        package.check_modinfo(self.modinfo(summary="a" * 250))
+        with self.assertRaisesRegex(package.PreflightError,
+                                    r"summary is 251 characters.*at most 250"):
+            package.check_modinfo(self.modinfo(summary="a" * 251))
+
+    def test_modinfo_name_and_summary_must_be_non_empty_strings(self):
+        for fields in ({"name": None}, {"name": 5}, {"name": ""},
+                       {"summary": None}, {"summary": ["x"]}):
+            with self.assertRaisesRegex(package.PreflightError,
+                                        "must be a non-empty string"):
+                package.check_modinfo(self.modinfo(**fields))
+        with self.assertRaises(package.PreflightError):
+            package.check_modinfo([])
+
+    def test_long_name_stops_check_before_the_tests_run(self):
+        with tempfile.TemporaryDirectory() as root:
+            for rel in ("mod.json", "strings.json", "_metadata/0.png"):
+                write(os.path.join(root, rel), "{}")
+            write(os.path.join(root, "_metadata", "modinfo.json"),
+                  '{"name": "%s", "summary": "s"}' % ("a" * 58))
+            with mock.patch.object(package.subprocess, "run") as run:
+                with self.assertRaisesRegex(package.PreflightError,
+                                            "name is 58"):
+                    package.check(root)
+            run.assert_not_called()
+
+    def test_repo_modinfo_is_within_the_limits(self):
+        with open(os.path.join(package.ROOT, "_metadata", "modinfo.json"),
+                  encoding="utf-8") as f:
+            package.check_modinfo(json.load(f))
 
 
 if __name__ == "__main__":
