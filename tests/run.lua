@@ -107,10 +107,17 @@ test("mod.json: mode param default is the first value (\"all stops\")", function
 	assert(all and new and all < new, "values order: all, new")
 end)
 
-test("strings.json: en and ja have every key mod.json uses", function()
+-- The game's 13 UI languages (base/strings/<lang>); a missing language
+-- falls back to the raw key, so every key must be in every block.
+local LANGS = { "en", "ja", "de", "es", "fr", "it", "ko", "nl", "pl", "pt_BR", "ru", "zh_CN", "zh_TW" }
+
+test("strings.json: all 13 languages have every key mod.json uses", function()
 	local f = assert(io.open(root .. "/strings.json"))
 	local s = f:read("*a"); f:close()
-	for _, lang in ipairs({ "en", "ja" }) do
+	local blocks = 0
+	for _ in s:gmatch('\n\t"[%w_]+": (%b{})') do blocks = blocks + 1 end
+	eq(blocks, #LANGS, "language blocks in strings.json")
+	for _, lang in ipairs(LANGS) do
 		local block = s:match('"' .. lang .. '"%s*:%s*(%b{})')
 		assert(block, lang .. " block missing")
 		for _, key in ipairs({ "mod_name", "hummer_force_unload_default_mode_name", "hummer_force_unload_default_mode_tip",
@@ -617,10 +624,10 @@ test("mod.json: stop_icon param defaults to its second value (On)", function()
 	assert(off and on and off < on, "values order: off, on")
 end)
 
-test("strings.json: marker keys in en and ja", function()
+test("strings.json: marker keys in all 13 languages", function()
 	local f = assert(io.open(root .. "/strings.json"))
 	local s = f:read("*a"); f:close()
-	for _, lang in ipairs({ "en", "ja" }) do
+	for _, lang in ipairs(LANGS) do
 		local block = s:match('"' .. lang .. '"%s*:%s*(%b{})')
 		for _, key in ipairs({ "hummer_force_unload_default_icon_name", "hummer_force_unload_default_icon_param_tip",
 			"hummer_force_unload_default_off", "hummer_force_unload_default_on", "hummer_force_unload_default_icon_tip" }) do
