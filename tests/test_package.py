@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import unittest
+import zipfile
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -37,12 +38,38 @@ class PackageTest(unittest.TestCase):
             for rel in ("mod.json", "strings.json", "content/a.lua",
                         "content/a.lua~", "content/.b.swp",
                         "_metadata/modinfo.json", "_metadata/0.png",
-                        "docs/x.md", "LICENSE", "README.md"):
+                        "docs/x.md", "LICENSE", "README.md", "CHANGELOG.md",
+                        "VERSION"):
                 write(os.path.join(root, rel))
             with mock.patch.object(package, "ROOT", root):
                 names = sorted(name for _, name in package.files_to_pack())
         self.assertEqual(names, ["_metadata/0.png", "_metadata/modinfo.json",
                                  "content/a.lua", "mod.json", "strings.json"])
+
+    def test_build_writes_the_packed_files_at_the_zip_root(self):
+        # tools/release.py builds dist/<modId>-vX.Y.Z.zip through build()
+        with tempfile.TemporaryDirectory() as root:
+            for rel in ("mod.json", "strings.json", "content/a.lua",
+                        "_metadata/0.png", "CHANGELOG.md", "VERSION"):
+                write(os.path.join(root, rel), rel)
+            out = os.path.join(root, "dist", "m-v1.0.0.zip")
+            os.makedirs(os.path.dirname(out))
+            names = package.build(root, out)
+            with zipfile.ZipFile(out) as z:
+                self.assertEqual(sorted(z.namelist()), sorted(names))
+                self.assertEqual(z.read("content/a.lua"), b"content/a.lua")
+            self.assertEqual(sorted(names), ["_metadata/0.png",
+                                             "content/a.lua", "mod.json",
+                                             "strings.json"])
+            self.assertEqual(sorted(os.listdir(os.path.dirname(out))),
+                             ["m-v1.0.0.zip"], "no .part left behind")
+
+    def test_check_reports_failures_as_an_error_not_an_exit(self):
+        # tools/release.py puts its files back on a PreflightError
+        with tempfile.TemporaryDirectory() as root:
+            write(os.path.join(root, "mod.json"), "{")
+            with self.assertRaisesRegex(package.PreflightError, "mod.json"):
+                package.check(root)
 
     def test_missing_cover_stops_before_the_tests_run(self):
         # the in-game uploader refuses a mod without a cover
