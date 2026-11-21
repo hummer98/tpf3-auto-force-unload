@@ -532,19 +532,15 @@ local function loadScript(env)
 	return exports, logs, G, render, lineReactUtil
 end
 
-local function successLogs(logs)
-	local n = 0
-	for _, m in ipairs(logs) do if m:find("wrapped", 1, true) then n = n + 1 end end
-	return n
-end
-
-test("script: data() wraps line_util once, logs one success line", function()
+test("script: data() wraps line_util once, logs nothing when all is well", function()
 	local lu = fakeLineUtil()
 	local lru = fakeLineReactUtil()
 	local exports, logs = loadScript({ lineUtil = lu, lineReactUtil = lru, getModParams = function() return {} end })
 	assert(exports.EntryPlugin and exports.EntryPlugin.name == "HummerForceUnloadDefaultEntry")
-	eq(#logs, 1, "one success line for both wraps")
-	assert(logs[1]:find("^%[FUD%] wrapped: line_util.autoLoadConfig yes, line_react_util.LineCargoDisplay %(stop marker%) yes"), logs[1])
+	-- the game log only gets our lines on failures
+	eq(#logs, 0, "no success line")
+	eq(lu[core.GUARD_KEY] ~= nil, true, "autoLoadConfig wrapped")
+	eq(lru[core.ICON_GUARD_KEY] ~= nil, true, "LineCargoDisplay wrapped")
 	local wrapped = lu.autoLoadConfig
 	local wrappedCargo = lru.LineCargoDisplay
 	-- the script loaded a second time (another chunk, same cached tables)
@@ -807,7 +803,7 @@ test("script marker: missing line / stop -> empty slot, no error", function()
 	eq(icon.kind, "Component")
 	icon = render(lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7, stopIndex = 9 }).layout.children[1])
 	eq(icon.kind, "Component")
-	eq(successLogs(logs), #logs, "only the load-time lines")
+	eq(#logs, 0, "a missing line or stop is not logged")
 end)
 
 test("script marker: a waypoint row (no LineCargoDisplay with a stop index) gets nothing", function()
@@ -858,6 +854,32 @@ test("script marker: line_react_util cannot be loaded -> logged, autoLoadConfig 
 	for _, m in ipairs(logs) do if m:find("line_react_util could not be loaded", 1, true) then found = true end end
 	assert(found, "failure logged")
 	assert(env.lineUtil[core.GUARD_KEY], "line_util wrapped anyway")
+end)
+
+test("script marker: line_react_util cannot be loaded -> one summary line names the working half", function()
+	local _, logs = loadScript(rowEnv({ reactRequireError = "missing" }))
+	local n = 0
+	for _, m in ipairs(logs) do
+		if m:find("autoLoadConfig yes, line_react_util.LineCargoDisplay (stop marker) NO", 1, true) then n = n + 1 end
+	end
+	eq(n, 1)
+end)
+
+test("script: a normal session (load twice, edits in both modes, stop rows on and off) logs nothing", function()
+	for _, mode in ipairs({ 1, 2 }) do
+		local env = rowEnv({ lineReactUtil = fakeLineReactUtil(),
+			getModParams = function() return { hummer_force_unload_default = { mode = mode } } end })
+		local _, logs, G, render, lru = loadScript(env)
+		G.__modules["::/gui/main/cargo_util.tl"] = { getPassengerCargoTypeId = function() return 0 end }
+		-- the second resource loads the script again
+		local _, logs2 = loadScript(env)
+		eq(#logs2, 0, "second load")
+		local a, b = via(load(2), false), via(load(), false)
+		env.lineUtil.autoLoadConfig({ path = { a, b } })
+		env.lineUtil.autoLoadConfig({ path = { a, b, via(load(1), false) } })
+		for i = 0, 2 do render(lru.LineCargoDisplay({ stopCargoDisplay = true, lineEntity = 7, stopIndex = i }).layout.children[1]) end
+		eq(#logs, 0, "mode " .. mode .. ": " .. tostring(logs[1]))
+	end
 end)
 
 ------------------------------------------------------------------------

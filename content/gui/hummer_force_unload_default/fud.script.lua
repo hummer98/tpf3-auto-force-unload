@@ -247,12 +247,14 @@ end
 -- Entry point of a .script.lua resource: the engine calls the global data()
 -- and ignores the chunk's return value (a trailing return {...} aborts the
 -- GUI bootstrap with "function data() not defined").
--- One line per load that wraps something (the first of the two resources);
--- the second load finds both guards set and stays quiet.
+-- Quiet when both wraps are in: the log is only for failures. When one of
+-- them failed, the load that put the other one in (the first of the two
+-- resources) adds one line saying which half works; the second load finds
+-- the guards set and does not repeat it.
 function data()
 	local auto = install()
 	local icon = installIcon()
-	if auto == "new" or icon == "new" then
+	if (auto == "new" or icon == "new") and not (auto and icon) then
 		log("wrapped: line_util.autoLoadConfig " .. (auto and "yes" or "NO")
 			.. ", line_react_util.LineCargoDisplay (stop marker) " .. (icon and "yes" or "NO"))
 	end
