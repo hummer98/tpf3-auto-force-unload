@@ -1,4 +1,4 @@
--- Offline tests for Force Unload by Default. Run from anywhere:
+-- Offline tests for Auto Force Unload at Drop-off Stops. Run from anywhere:
 --   luajit tests/run.lua
 -- No game needed: the globals the scripts expect (api, ug_require,
 -- debugPrint) are stubbed below with just enough behaviour.

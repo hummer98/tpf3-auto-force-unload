@@ -1,5 +1,5 @@
--- Force Unload by Default: turns on "Force Unload All Cargo On Arrival"
--- (stopConfig.forceUnload) at stops where the line loads no cargo
+-- Auto Force Unload at Drop-off Stops: turns on "Force Unload All Cargo
+-- On Arrival" (stopConfig.forceUnload) at stops where the line loads no cargo
 -- (passengers aside), and off where it loads cargo, whenever the base line manager works out the
 -- load config of a line (see fud_core.lua for the rules).
 --

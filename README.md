@@ -1,4 +1,4 @@
-# Force Unload by Default (Transport Fever 3)
+# Auto Force Unload at Drop-off Stops (Transport Fever 3)
 
 [日本語は下にあります](#日本語)
 
@@ -86,7 +86,7 @@ the stop list** switches it off.
   `<Steam>/userdata/<your id>/3493540/local/mods/`.
   - From the release zip: create that folder and extract the zip **into** it
     (the zip has no top folder of its own).
-  - From GitHub: `git clone <GitHub URL: not published yet>
+  - From GitHub: `git clone https://github.com/hummer98/tpf3-auto-force-unload
     hummer_force_unload_default_1` inside `local/mods/` (a different folder
     name will not load).
   - Then enable the mod in the game.
@@ -140,7 +140,7 @@ which is what makes later uploads update the same mod.io page. Use
 
 ## 日本語
 
-**積み下ろし強制を既定でオン（Transport Fever 3）**
+**降ろすだけの駅に積み下ろし強制を自動設定（Transport Fever 3）**
 
 貨物の路線で、積み下ろすだけの停留所の「**到着時にすべての貨物を強制的に積み下ろし**」をオンにします。在庫が満タンでも貨物をそこで下ろすので、積んだ場所まで貨物が戻ってこなくなります。貨物を積む停留所ではオフのままです。オンの停留所は、路線マネージャーの停留所一覧に小さなアイコンで示します。
 
@@ -188,7 +188,7 @@ which is what makes later uploads update the same mod.io page. Use
 - mod.io：`<mod.io の URL：未公開>`（ゲーム内の MODハブからも購読できます）。
 - 手動：ゲームは `<Steam>/userdata/<ID>/3493540/local/mods/` の中の、名前がちょうど `hummer_force_unload_default_1` のフォルダからだけ読み込みます。
   - リリースの zip から：そのフォルダを作り、その**中に** zip を展開します（zip には外側のフォルダがありません）。
-  - GitHub から：`local/mods/` の中で `git clone <GitHub の URL：未公開> hummer_force_unload_default_1` とします（別のフォルダ名では読み込まれません）。
+  - GitHub から：`local/mods/` の中で `git clone https://github.com/hummer98/tpf3-auto-force-unload hummer_force_unload_default_1` とします（別のフォルダ名では読み込まれません）。
   - そのあとゲーム内で有効にします。
 
 ### 開発

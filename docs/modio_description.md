@@ -2,9 +2,9 @@
 
 The in-game uploader has no description field: paste this into the mod.io web page.
 
-**Summary:** Force unload on at stops that load no cargo, off where cargo is loaded. / 貨物を積まない停留所で積み下ろし強制をオン、貨物を積む停留所ではオフ。
+**Summary:** Automatically turns on force unload at stops that only drop off cargo; stops that load cargo keep it off. / 貨物を降ろすだけの駅で積み下ろし強制を自動でオン、貨物を積む駅ではオフ。
 
-## English: Force Unload by Default
+## English: Auto Force Unload at Drop-off Stops
 
 Turns on "Force Unload All Cargo On Arrival" at the stops where a cargo line only unloads, so the cargo is unloaded there even when the stock is full instead of riding back to where it was loaded. Stops that load cargo keep it off.
 
@@ -18,9 +18,9 @@ Note: with force unload on, cargo is unloaded into a full stock and destroyed, a
 
 Adding and removing the mod is safe for saves: it only sets the base game's own checkbox, which stays as it is without the mod. Similar mod: Line Toolkit (mod.io 6414310) turns force unload on per line after cargo has come back; this one sets it per stop while you build the line.
 
-Texts in all 13 game languages. License: MIT. Source code: <GitHub URL: not published yet>
+Texts in all 13 game languages. License: MIT. Source code: https://github.com/hummer98/tpf3-auto-force-unload
 
-## 日本語: 積み下ろし強制を既定でオン
+## 日本語: 降ろすだけの駅に積み下ろし強制を自動設定
 
 貨物の路線で、積み下ろすだけの停留所の「到着時にすべての貨物を強制的に積み下ろし」をオンにします。在庫が満タンでも貨物をそこで下ろすので、積んだ場所まで貨物が戻ってこなくなります。貨物を積む停留所ではオフのままです。
 
@@ -34,4 +34,4 @@ MOD の設定：設定する停留所（路線の全停留所を合わせる／�
 
 セーブへの追加も、セーブからの削除も問題ありません。設定するのは本体のチェックボックスだけで、MOD を外してもそのまま残ります。似た MOD：Line Toolkit（mod.io 6414310）は、貨物が戻ってきてから路線ごとに積み下ろし強制をオンにします。この MOD は、路線を作るときに停留所ごとに決めます。
 
-ゲームの13言語に対応。ライセンス：MIT。ソースコード：<GitHub の URL：未公開>
+ゲームの13言語に対応。ライセンス：MIT。ソースコード：https://github.com/hummer98/tpf3-auto-force-unload

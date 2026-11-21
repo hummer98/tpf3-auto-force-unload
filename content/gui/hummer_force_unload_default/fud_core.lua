@@ -1,4 +1,4 @@
--- Force Unload by Default: logic, kept free of game globals so it runs in
+-- Auto Force Unload at Drop-off Stops: logic, kept free of game globals so it runs in
 -- the offline tests.
 --
 -- The base line manager decides every stop's load list in

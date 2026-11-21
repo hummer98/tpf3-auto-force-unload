@@ -17,6 +17,18 @@ FORCE_UNLOAD = "Force Unload All Cargo On Arrival"
 FORCE_UNLOAD_TIP = "Unload cargo even if stocks are full."
 LINE_MANAGER = "Line Manager"
 STOPS = "Stops"
+# the release names chosen by the user (2026-11-22); modId and folder stay
+# hummer_force_unload_default(_1)
+MOD_NAMES = {"en": "Auto Force Unload at Drop-off Stops",
+             "ja": "降ろすだけの駅に積み下ろし強制を自動設定"}
+# the part of each mod name that stands for "force unload": taken from the
+# base game's checkbox text, compared case-insensitively
+FORCE_UNLOAD_IN_NAME = {
+    "en": "Force Unload", "ja": "積み下ろし", "de": "erzwingen",
+    "es": "Forzar la descarga", "fr": "Forcer le déchargement",
+    "it": "Forza scarico", "ko": "강제 하차", "nl": "verplicht lossen",
+    "pl": "rozładowani", "pt_BR": "Forçar descarregamento",
+    "ru": "принудительно выгружать", "zh_CN": "强制卸下", "zh_TW": "強制卸載"}
 # where the base word does not fit a mod setting button: Italian "Off" is
 # "Mai" (never) in the base catalogue
 VANILLA_OVERRIDES = {("it", "Off"): "No"}
@@ -80,6 +92,20 @@ class StringsTest(unittest.TestCase):
             self.assertTrue(first.startswith(fu), "%s: %r" % (lang, icon))
             self.assertTrue(first.endswith(v("On")), "%s: %r" % (lang, icon))
             self.assertEqual(second, v(FORCE_UNLOAD_TIP), lang)
+
+    def test_mod_names(self):
+        s = load_strings()
+        for lang, name in MOD_NAMES.items():
+            self.assertEqual(s[lang]["mod_name"], name)
+        self.assertEqual(sorted(FORCE_UNLOAD_IN_NAME), sorted(LANGS))
+        for lang in LANGS:
+            part = FORCE_UNLOAD_IN_NAME[lang].casefold()
+            self.assertIn(part, s[lang]["mod_name"].casefold(), lang)
+        if not os.path.isdir(GAME_STRINGS):
+            self.skipTest("game strings not found")
+        for lang in LANGS:
+            self.assertIn(FORCE_UNLOAD_IN_NAME[lang].casefold(),
+                          catalog(lang)(FORCE_UNLOAD).casefold(), lang)
 
     def test_my_mods_text_matches_the_strings(self):
         # My Mods shows _metadata/modinfo.json, the mod settings show
