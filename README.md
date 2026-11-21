@@ -1,0 +1,200 @@
+# Force Unload by Default (Transport Fever 3)
+
+[日本語は下にあります](#日本語)
+
+Turns on **Force Unload All Cargo On Arrival** at the line stops where a
+cargo line only unloads, so the cargo is unloaded there even when the stock
+is full, instead of riding back to where it was loaded. Stops that load cargo
+keep it off. A small icon in the Line Manager's stop list shows where it is
+on.
+
+## Features
+
+- Whenever the Line Manager works out a line's load configuration by itself
+  (the cargo each stop loads), this mod sets the checkbox stop by stop:
+  - **on** at stops that load no cargo (passengers do not count: the base
+    game switches them on at every stop that takes them, cargo truck stops
+    included);
+  - **off** at stops that load cargo.
+- Lines that load no cargo anywhere (bus, tram and other passenger lines, a
+  line with a single stop) keep it off at every stop.
+- Lines you configured by hand are left alone: once you change a stop's
+  cargo to load or one of its checkboxes, the base game marks the line as
+  custom and stops configuring it automatically, and so does this mod.
+- The setting is the base game's own checkbox (the cargo filter window of a
+  stop), so you can still change it there; the line then counts as hand
+  configured.
+
+## When it acts, and when not
+
+It acts when you edit a line in the Line Manager: create a line, add a stop
+or a waypoint, remove a stop, or move one in the order. With the mod setting
+**Stops to set**:
+
+| Value | What is set |
+|---|---|
+| All stops of the line (default) | Every stop of the edited line, each time |
+| New stops only | Only the stops added in that edit; the others keep their setting even if what they load changed (a line's very first stop is set again when the second one is added) |
+
+It does not act:
+
+- on lines that existed before the mod was added, until you edit them;
+- on lines whose cargo settings or checkboxes you changed by hand;
+- when a stop is only moved to another station;
+- on lines made or changed without the Line Manager (by other mods' scripts,
+  for example).
+
+Note: with force unload on, cargo is unloaded into a full stock and
+destroyed. That also happens at a stop along the way that loads no cargo,
+for cargo that could have gone on to a later stop on the same line. Turn the
+checkbox off there by hand (the line then counts as hand configured).
+
+## The marker
+
+In the Line Manager's stop list, a stop with Force Unload All Cargo On
+Arrival switched on gets a small unload icon between its name and its cargo
+icons (the base game's unload arrow from the cargo filter window). Stops
+with it off get an empty cell of the same size, so the cargo icons stay in
+one column. The marker is shown on every line, including the ones you
+configured by hand, and only reads the line. The mod setting **Marker in
+the stop list** switches it off.
+
+## Compatibility
+
+- Adding the mod to a running save and removing it again are both safe
+  (`severityAdd: None`, `severityRemove: None`). The mod stores nothing of
+  its own in the save: what it sets is the base game's `forceUnload` flag of
+  each stop, which stays as it is after the mod is removed.
+- Not `cosmetic`: it changes how cargo is unloaded, so the game treats it as
+  a gameplay mod.
+- No base file is replaced. It wraps the base functions
+  `line_util.autoLoadConfig`, `line_util.makeNewStop` and
+  `line_react_util.LineCargoDisplay` at GUI start and calls the previous
+  function first, so other mods that wrap the same functions stay in the
+  chain.
+- No dependencies.
+- Similar mod: Line Toolkit (mod.io 6414310) switches force unload on per
+  line after cargo has come back. This mod sets it while you build the line,
+  per stop, from the cargo the stops load.
+
+## Install
+
+- mod.io: `<mod.io URL: not published yet>` (or subscribe in the game's mod
+  hub).
+- Manually: the game loads a local mod only from a folder named exactly
+  `hummer_force_unload_default_1` inside
+  `<Steam>/userdata/<your id>/3493540/local/mods/`.
+  - From the release zip: create that folder and extract the zip **into** it
+    (the zip has no top folder of its own).
+  - From GitHub: `git clone <GitHub URL: not published yet>
+    hummer_force_unload_default_1` inside `local/mods/` (a different folder
+    name will not load).
+  - Then enable the mod in the game.
+
+## Development
+
+| File | Role |
+|---|---|
+| `content/gui/hummer_force_unload_default/fud_core.lua` | The rules (which stop gets force unload, the two modes) and the wraps of `autoLoadConfig` / `makeNewStop` and `LineCargoDisplay`, free of game globals so the tests run offline |
+| `content/gui/hummer_force_unload_default/fud.script.lua` | GUI script: reads the mod settings and the line from the game, installs the wraps, builds the marker cell; logs only failures |
+| `content/gui/hummer_force_unload_default/replace.res.lua` | Loads the script early at GUI start (a replacement config with a low order that replaces no recipe), so the marker wrap sits inside those of mods loaded later |
+| `content/gui/hummer_force_unload_default/entry.res.lua` | Loads the script again through the mod entry point in case the config did not run (the second load does nothing) |
+| `content/gui/hummer_force_unload_default/fud.css.lua` | Size and position of the marker cell in the stop rows |
+| `mod.json` | modId, revision and the two mod settings |
+| `strings.json` | Texts in the game's 13 languages; the checkbox, Line Manager, stop and On/Off words are the base game's own |
+| `_metadata/modinfo.json` | Name, summary and description for the game's mod list and the in-game mod.io upload (one text for all languages, so "English / 日本語") |
+| `_metadata/0.png` | Cover image (required by the in-game uploader) |
+| `docs/modio_description.md` | Description for the mod.io web page |
+
+Tests run offline (no game needed; the checks against the installed game's
+`base.mo` are skipped without it):
+
+```sh
+luajit tests/run.lua
+TMPDIR=<scratch dir> python3 -m unittest discover -s tests
+```
+
+Set `TMPDIR` to a scratch directory for the Python tests and the tools
+below (they create temporary folders), not `/tmp` or `local/mods`.
+
+`python3 tools/package.py` runs both test suites and builds
+`dist/hummer_force_unload_default_1.zip` with only `mod.json`,
+`strings.json`, `content/` and `_metadata/`. LICENSE stays out: the game's
+mod validation rejects files without an allowed extension. It refuses to
+build without `_metadata/0.png`.
+
+`python3 tools/stage.py` copies the mod into the game's staging area
+(`local/staging_area/hummer_force_unload_default_1`) for the in-game upload.
+Run it from the copy in `local/mods/` (it finds the staging area next to
+that folder), while the game is stopped. It refuses uncommitted changes, a
+missing cover and, after the first upload, an unraised `revision`, and
+keeps the `_metadata/mod.io_fileid.txt` the game writes at the first upload,
+which is what makes later uploads update the same mod.io page. Use
+`--first-upload` for the first one.
+
+## License
+
+[MIT](LICENSE) © 2026 hummer
+
+---
+
+## 日本語
+
+**積み下ろし強制を既定でオン（Transport Fever 3）**
+
+貨物の路線で、積み下ろすだけの停留所の「**到着時にすべての貨物を強制的に積み下ろし**」をオンにします。在庫が満タンでも貨物をそこで下ろすので、積んだ場所まで貨物が戻ってこなくなります。貨物を積む停留所ではオフのままです。オンの停留所は、路線マネージャーの停留所一覧に小さなアイコンで示します。
+
+### 機能
+
+- 路線マネージャーが路線の積み込み設定（各停留所で積み込む貨物）を自動で決めるたびに、停留所ごとにこのチェックボックスを設定します。
+  - 貨物を積まない停留所では**オン**（旅客は数えません。本体は、旅客を扱う停留所ではトラックの貨物停留所でも旅客をオンにするからです）。
+  - 貨物を積む停留所では**オフ**。
+- どの停留所でも貨物を積まない路線（バス・路面電車などの旅客の路線、停留所が 1 つの路線）は、全部オフのままです。
+- 手で設定した路線には触りません。停留所の積み込む貨物やチェックボックスを一度変えると、本体はその路線を手動設定として扱い、自動で決めなくなります。この MOD も同じです。
+- 設定するのは本体のチェックボックス（停留所の貨物フィルターの画面）なので、そこで手で変えることもできます。変えた路線は手で設定した路線になります。
+
+### 動くとき・動かないとき
+
+路線マネージャーで路線を編集したとき（路線を作る、停留所やウェイポイントを足す、停留所を消す、順番を入れ替える）に動きます。MOD の設定「**設定する停留所**」で、設定する範囲を選べます。
+
+| 値 | 設定するもの |
+|---|---|
+| 路線の全停留所を合わせる（既定） | 編集した路線の全停留所を、毎回 |
+| 新しく足した停留所だけ | その編集で足した停留所だけ。ほかの停留所は、積み込む貨物が変わっても設定をそのままにします（路線の最初の停留所だけは、2 つ目を足したときに設定し直します） |
+
+次の場合は動きません。
+
+- MOD を入れる前からある路線（次に編集するまで）。
+- 積み込む貨物やチェックボックスを手で変えた路線。
+- 停留所を別の駅へ動かしただけのとき。
+- 路線マネージャーを通さずに作られた・変えられた路線（他の MOD のスクリプトなど）。
+
+注意: オンの停留所では、在庫が満タンでも貨物を下ろして破棄します。貨物を積まない途中の停留所でも同じで、同じ路線の先の停留所へ運べたはずの貨物も消えます。そういう停留所では手でオフにしてください（その路線は手で設定した路線になります）。
+
+### 目印
+
+路線マネージャーの停留所一覧で、「到着時にすべての貨物を強制的に積み下ろし」がオンの停留所には、名前と貨物のアイコンの間に小さな積み下ろしのアイコン（貨物フィルターの画面にある本体の積み下ろしの矢印）を出します。オフの停留所には同じ大きさの空きを置くので、貨物のアイコンの列はそろったままです。目印は、手で設定した路線も含めすべての路線に出ます。路線の情報を読むだけで、何も変えません。MOD の設定「**停留所一覧の印**」で消せます。
+
+### 互換性
+
+- プレイ中のセーブに追加しても、外しても問題ありません（`severityAdd: None`、`severityRemove: None`）。この MOD は自分のデータをセーブに残しません。設定するのは本体の各停留所の `forceUnload` で、MOD を外してもそのまま残ります。
+- `cosmetic` ではありません。貨物の積み下ろし方を変えるので、ゲームはゲームプレイに関わる MOD として扱います。
+- 本体のファイルは置き換えません。GUI の起動時に本体の `line_util.autoLoadConfig`・`line_util.makeNewStop`・`line_react_util.LineCargoDisplay` を包み、先に元の関数を呼びます。同じ関数を包む他の MOD もそのまま動きます。
+- 依存する MOD はありません。
+- 似た MOD: Line Toolkit（mod.io 6414310）は、貨物が戻ってきてから路線ごとに積み下ろし強制をオンにします。この MOD は、路線を作るときに、停留所が積む貨物から停留所ごとに決めます。
+
+### 導入
+
+- mod.io：`<mod.io の URL：未公開>`（ゲーム内の MODハブからも購読できます）。
+- 手動：ゲームは `<Steam>/userdata/<ID>/3493540/local/mods/` の中の、名前がちょうど `hummer_force_unload_default_1` のフォルダからだけ読み込みます。
+  - リリースの zip から：そのフォルダを作り、その**中に** zip を展開します（zip には外側のフォルダがありません）。
+  - GitHub から：`local/mods/` の中で `git clone <GitHub の URL：未公開> hummer_force_unload_default_1` とします（別のフォルダ名では読み込まれません）。
+  - そのあとゲーム内で有効にします。
+
+### 開発
+
+ファイルの役割とテスト・パッケージの手順は、英語の「Development」の節を見てください。テストは `luajit tests/run.lua` と `TMPDIR=<スクラッチ> python3 -m unittest discover -s tests`、zip は `python3 tools/package.py`、ステージングは `local/mods/` のコピーで、ゲームを止めて `python3 tools/stage.py`（最初は `--first-upload`）です。
+
+### ライセンス
+
+[MIT](LICENSE) © 2026 hummer
