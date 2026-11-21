@@ -171,6 +171,23 @@ def released_versions(text):
     return out
 
 
+def unwrap(body):
+    """The changelog's list items on one line each: the file is wrapped at
+    about 76 columns, and a GitHub release (like the mod.io change log)
+    shows each line break as one. Headings, blank lines and new items stay
+    where they are; an indented line continues the item above it."""
+    out = []
+    for line in body.splitlines():
+        cont = (line[:1] in (" ", "\t") and line.strip() and out
+                and out[-1].strip() and not out[-1].startswith("#")
+                and not re.match(r"^(?:[-*+]|\d+\.)\s", line.strip()))
+        if cont:
+            out[-1] = out[-1].rstrip() + " " + line.strip()
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
 def has_entries(body):
     """Anything besides blank lines and "### Added" style headings."""
     return any(l.strip() and not l.lstrip().startswith("###")
@@ -401,7 +418,7 @@ class Release:
             raise ReleaseError(str(e))
         new_cl = cut_changelog(cl, new, date)
         new_mj = revision_text(mj, new)
-        notes = section(new_cl, new)
+        notes = unwrap(section(new_cl, new))
         url = self.github_ready(remote, local_only)
         tag = "v" + new
         asset = zip_path(self.root, new)
@@ -476,7 +493,17 @@ class Release:
             return
         for cmd in steps:
             self.out("+ " + show(cmd))
-            r = self.run(cmd, self.root)
+            try:
+                r = self.run(cmd, self.root)
+            except ReleaseError as e:
+                # tagged already: cutting again would refuse the version
+                raise ReleaseError(
+                    "%s\nv%s is committed and tagged; fix the cause (a "
+                    "GitHub master ahead of this one, a missing login), "
+                    "then python3 tools/release.py --github-only with HEAD "
+                    "at v%s (it pushes the tag and creates the release; "
+                    "push the branch with git push %s HEAD:master)"
+                    % (e, version, version, remote))
             if r is not None and getattr(r, "stdout", "").strip():
                 self.out(r.stdout.strip())
         self.out("GitHub release v%s created" % version)
@@ -502,6 +529,7 @@ class Release:
             notes = section(f.read(), version)
         if not notes:
             raise ReleaseError("%s has no [%s] section" % (CHANGELOG, version))
+        notes = unwrap(notes)
         url = self.github_ready(remote, False)
         asset = zip_path(self.root, version)
         if not dry_run:

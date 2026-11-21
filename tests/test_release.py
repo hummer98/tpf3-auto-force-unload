@@ -154,6 +154,16 @@ class ChangelogTest(unittest.TestCase):
         with self.assertRaisesRegex(release.ReleaseError, "already has"):
             release.cut_changelog(CHANGELOG, "0.1.0", "2026-11-18")
 
+    def test_notes_put_each_item_on_one_line(self):
+        body = ("### Added\n- First thing, wrapped\n  onto two lines.\n"
+                "- Second.\n  - A nested item\n    wrapped.\n\n### Fixed\n"
+                "- Third\n\tby tab.\n")
+        self.assertEqual(release.unwrap(body),
+                         "### Added\n- First thing, wrapped onto two lines.\n"
+                         "- Second.\n  - A nested item wrapped.\n\n"
+                         "### Fixed\n- Third by tab.")
+        self.assertEqual(release.unwrap(""), "")
+
     def test_released_versions_newest_first(self):
         text = CHANGELOG.replace("## [0.1.0]", "## [0.2.0] - 2026-02-01\n\n"
                                  "- B.\n\n## [0.1.0]")
@@ -415,6 +425,33 @@ class FlowTest(unittest.TestCase):
         self.assertEqual(self.git("rev-parse", "master", root=bare),
                          self.git("rev-parse", "HEAD"))
 
+    def test_wrapped_items_go_to_github_on_one_line(self):
+        self.add_remote()
+        path = os.path.join(self.root, release.CHANGELOG)
+        write(path, read(path).replace("- New thing.",
+                                       "- New thing,\n  wrapped."))
+        self.git("commit", "-q", "-am", "wrap")
+        self.rel().cut("0.9.0", "2026-11-18")
+        gh = self.cmds[2]
+        self.assertEqual(gh[gh.index("--notes") + 1],
+                         "### Added\n- New thing, wrapped.\n\n### Fixed\n"
+                         "- Old bug.")
+        # the file itself keeps its wrapping
+        self.assertIn("- New thing,\n  wrapped.", read(path))
+
+    def test_a_failed_push_after_the_tag_says_how_to_go_on(self):
+        self.add_remote()
+
+        def failing(cmd, root):
+            raise release.ReleaseError("git push github failed: rejected")
+        rel = self.rel()
+        rel.run = failing
+        with self.assertRaisesRegex(release.ReleaseError,
+                                    "(?s)rejected.*committed and tagged.*"
+                                    "--github-only"):
+            rel.cut("0.9.0", "2026-11-18")
+        self.assertEqual(self.tags(), ["v0.9.0"])
+
     def test_origin_is_not_the_default_remote(self):
         # origin of the development copy is the game's checkout, not GitHub
         origin = self.add_remote("origin")
@@ -526,8 +563,11 @@ class CopyHeadTest(unittest.TestCase):
                      "needs luajit and a git checkout")
 class RealTreeTest(unittest.TestCase):
     """A release cut on a copy of this repository with the real Lua tests:
-    the version, the revision and the changelog must still agree once the
-    version's section exists (the first release cuts the current version)."""
+    the version, the revision and the changelog must still agree once a
+    version's section exists. Before the first release the current version
+    is cut; after it (the changelog has its section) a patch with a stand-in
+    entry. Whether it is released is read from the changelog, not the tags:
+    a copy pulled without tags (the one in local/mods) must pass too."""
 
     def test_cutting_the_current_version_keeps_the_tree_consistent(self):
         if subprocess.run(["git", "cat-file", "-e", "HEAD:VERSION"],
@@ -551,10 +591,18 @@ class RealTreeTest(unittest.TestCase):
                     subprocess.run(["git"] + cmd, cwd=root, check=True,
                                    capture_output=True)
                 version = release.read_version(root)
-                if subprocess.run(["git", "tag", "--list", "v" + version],
-                                  cwd=REPO, capture_output=True, text=True
-                                  ).stdout.strip():
-                    self.skipTest("v%s is released already" % version)
+                cl_path = os.path.join(root, release.CHANGELOG)
+                cl = read(cl_path)
+                if release.section(cl, version) is not None:
+                    write(cl_path, cl.replace(
+                        release.UNRELEASED,
+                        release.UNRELEASED + "\n\n- Stand-in entry.", 1))
+                    subprocess.run(["git", "commit", "-q", "-am", "entry"],
+                                   cwd=root, check=True, capture_output=True)
+                    spec = "patch"
+                    want = release.bump(version, "patch")
+                else:
+                    spec = want = version
 
                 def lua_tests(r):
                     # not the tool tests: they would run this test again
@@ -571,13 +619,13 @@ class RealTreeTest(unittest.TestCase):
                                       checks=lua_tests,
                                       build=lambda r, o: None,
                                       run=lambda c, r: None)
-                self.assertEqual(rel.cut(version, "2026-11-18"), version)
+                self.assertEqual(rel.cut(spec, "2026-11-18"), want)
                 self.assertEqual(subprocess.run(
                     ["git", "tag", "--list"], cwd=root, capture_output=True,
-                    text=True).stdout.split(), ["v" + version])
+                    text=True).stdout.split(), ["v" + want])
                 self.assertEqual(release.consistency(root), [])
                 self.assertEqual(release.read_revision(root),
-                                 release.revision_of(version))
+                                 release.revision_of(want))
 
 
 if __name__ == "__main__":
