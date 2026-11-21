@@ -8,6 +8,8 @@ here. The format follows
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-11-22
+
 ### Added
 - First public release. Whenever the Line Manager works out a line's load
   configuration by itself, the mod sets the base game's **Force Unload All
