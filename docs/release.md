@@ -94,3 +94,8 @@ python3 tools/release.py --github-only        # HEAD のタグの push と GitHu
    - `mod.io_fileid.txt` が無いと止まる（2つ目のページができるのを防ぐため）。
 5. ゲームの中で MOD hub > My mods > この MOD > Revalidate、変更の欄にその版の節（`--github-only --dry-run` の `notes:` の後の文）を写し、Update。
 6. 説明文が変わったら、mod.io の Web のページも直す。README の mod.io の URL は、最初の公開の後は変わらない。
+
+## mod.io の MOD ID の控え
+- mod.io の MOD ID は **6543965**（https://mod.io/g/transportfever3/m/auto-force-unload-at-drop-off-stops 、最初のアップロードは 2026-11-22 の v1.0.1）。
+- ゲームは、これを `local/staging_area/hummer_force_unload_default_1/_metadata/mod.io_fileid.txt` に書く（名前は fileid でも、中身は MOD ID）。`stage.py` が置き直しのたびに引き継ぐ。リポジトリには入れない（zip の `_metadata/` に入ってしまうため）。
+- ステージングのコピーが消えたときは、`stage.py --first-upload` で置き直してから、上の番号だけを書いた `mod.io_fileid.txt` をそこへ戻す。戻さずにアップロードすると、mod.io に2つ目のページができる。

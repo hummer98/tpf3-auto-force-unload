@@ -79,7 +79,7 @@ the stop list** switches it off.
 
 ## Install
 
-- mod.io: `<mod.io URL: not published yet>` (or subscribe in the game's mod
+- mod.io: https://mod.io/g/transportfever3/m/auto-force-unload-at-drop-off-stops (or subscribe in the game's mod
   hub).
 - Manually: the game loads a local mod only from a folder named exactly
   `hummer_force_unload_default_1` inside
@@ -201,7 +201,7 @@ when `VERSION`, the revision and the changelog disagree.
 
 ### 導入
 
-- mod.io：`<mod.io の URL：未公開>`（ゲーム内の MODハブからも購読できます）。
+- mod.io：https://mod.io/g/transportfever3/m/auto-force-unload-at-drop-off-stops（ゲーム内の MODハブからも購読できます）。
 - 手動：ゲームは `<Steam>/userdata/<ID>/3493540/local/mods/` の中の、名前がちょうど `hummer_force_unload_default_1` のフォルダからだけ読み込みます。
   - リリースの zip から：そのフォルダを作り、その**中に** zip を展開します（zip には外側のフォルダがありません）。
   - GitHub から：`local/mods/` の中で `git clone https://github.com/hummer98/tpf3-auto-force-unload hummer_force_unload_default_1` とします（別のフォルダ名では読み込まれません）。
