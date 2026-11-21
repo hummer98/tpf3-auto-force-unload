@@ -863,13 +863,38 @@ test("script marker: line_react_util cannot be loaded -> logged, autoLoadConfig 
 	assert(env.lineUtil[core.GUARD_KEY], "line_util wrapped anyway")
 end)
 
-test("script marker: line_react_util cannot be loaded -> one summary line names the working half", function()
-	local _, logs = loadScript(rowEnv({ reactRequireError = "missing" }))
+local function summaryLines(...)
 	local n = 0
-	for _, m in ipairs(logs) do
-		if m:find("autoLoadConfig yes, line_react_util.LineCargoDisplay (stop marker) NO", 1, true) then n = n + 1 end
+	for _, logs in ipairs({ ... }) do
+		for _, m in ipairs(logs) do if m:find("wrapped: ", 1, true) then n = n + 1 end end
 	end
-	eq(n, 1)
+	return n
+end
+
+test("script marker: line_react_util cannot be loaded -> one summary line names the working half, not repeated", function()
+	local env = rowEnv({ reactRequireError = "missing" })
+	local _, logs = loadScript(env)
+	local found = false
+	for _, m in ipairs(logs) do
+		if m:find("autoLoadConfig yes, line_react_util.LineCargoDisplay (stop marker) NO", 1, true) then found = true end
+	end
+	assert(found, "summary names the failed half")
+	-- the second resource loads the script again
+	local _, logs2 = loadScript(env)
+	eq(summaryLines(logs, logs2), 1, "one summary over both loads")
+end)
+
+test("script: line_util cannot be loaded -> summary once over both loads", function()
+	local env = { requireError = "no such file", lineReactUtil = fakeLineReactUtil(), getModParams = function() return {} end }
+	local _, logs = loadScript(env)
+	local _, logs2 = loadScript(env)
+	eq(summaryLines(logs, logs2), 1)
+end)
+
+test("script: both wraps fail -> only the failure lines, no summary", function()
+	local _, logs = loadScript({ requireError = "no such file", reactRequireError = "missing", getModParams = function() return {} end })
+	eq(summaryLines(logs), 0)
+	assert(#logs >= 2, "each failure logged")
 end)
 
 test("script: a normal session (load twice, edits in both modes, stop rows on and off) logs nothing", function()
