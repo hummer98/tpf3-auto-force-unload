@@ -1,5 +1,5 @@
--- Auto Force Unload at Drop-off Stops: logic, kept free of game globals so it runs in
--- the offline tests.
+-- Auto Force Unload at Drop-off Stops: logic, kept free of game globals so
+-- it runs in the offline tests.
 --
 -- The base line manager decides every stop's load list in
 -- line_util.autoLoadConfig (gui/line_vehicle_mgmt/line_util.tl), which
