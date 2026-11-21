@@ -101,10 +101,13 @@ the stop list** switches it off.
 | `content/gui/hummer_force_unload_default/entry.res.lua` | Loads the script again through the mod entry point in case the config did not run (the second load does nothing) |
 | `content/gui/hummer_force_unload_default/fud.css.lua` | Size and position of the marker cell in the stop rows |
 | `mod.json` | modId, revision and the two mod settings |
+| `VERSION` | The version (`MAJOR.MINOR.PATCH`); `mod.json`'s revision is MAJOR * 10000 + MINOR * 100 + PATCH |
+| `CHANGELOG.md` | Changes per version ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/)); new ones go under `## [Unreleased]` |
 | `strings.json` | Texts in the game's 13 languages; the checkbox, Line Manager, stop and On/Off words are the base game's own |
 | `_metadata/modinfo.json` | Name, summary and description for the game's mod list and the in-game mod.io upload (one text for all languages, so "English / 日本語") |
 | `_metadata/0.png` | Cover image (required by the in-game uploader) |
 | `docs/modio_description.md` | Description for the mod.io web page |
+| `docs/release.md` | Versions and the release steps (Japanese) |
 
 Tests run offline (no game needed; the checks against the installed game's
 `base.mo` are skipped without it):
@@ -131,6 +134,19 @@ missing cover and, after the first upload, an unraised `revision`, and
 keeps the `_metadata/mod.io_fileid.txt` the game writes at the first upload,
 which is what makes later uploads update the same mod.io page. Use
 `--first-upload` for the first one.
+
+Versions and releases ([docs/release.md](docs/release.md)): write each
+change under `## [Unreleased]` in `CHANGELOG.md`. To release, in a
+development clone (not the copy in `local/mods/`), run
+`python3 tools/release.py patch|minor|major|X.Y.Z` (`--dry-run` first). It
+writes `VERSION`, the revision and the changelog section, runs the tests,
+commits `Release vX.Y.Z`, tags `vX.Y.Z`, builds
+`dist/hummer_force_unload_default-vX.Y.Z.zip` and, with the `github`
+remote, pushes the branch and that tag and creates the GitHub release with
+the section as its notes. Then, with the game stopped, pull into the copy
+in `local/mods/`, run `tools/stage.py` there and upload in game; the
+raised revision is what lets `stage.py` accept the update. The tests fail
+when `VERSION`, the revision and the changelog disagree.
 
 ## License
 
@@ -193,7 +209,7 @@ which is what makes later uploads update the same mod.io page. Use
 
 ### 開発
 
-ファイルの役割とテスト・パッケージの手順は、英語の「Development」の節を見てください。テストは `luajit tests/run.lua` と `TMPDIR=<スクラッチ> python3 -m unittest discover -s tests`、zip は `python3 tools/package.py`、ステージングは `local/mods/` のコピーで、ゲームを止めて `python3 tools/stage.py`（最初は `--first-upload`）です。
+ファイルの役割とテスト・パッケージの手順は、英語の「Development」の節を見てください。テストは `luajit tests/run.lua` と `TMPDIR=<スクラッチ> python3 -m unittest discover -s tests`、zip は `python3 tools/package.py`、ステージングは `local/mods/` のコピーで、ゲームを止めて `python3 tools/stage.py`（最初は `--first-upload`）です。版は `VERSION`、変更は `CHANGELOG.md` の `## [Unreleased]` に書き、release は開発用の clone で `python3 tools/release.py patch|minor|major|X.Y.Z` です（手順は [docs/release.md](docs/release.md)）。
 
 ### ライセンス
 
