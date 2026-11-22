@@ -8,6 +8,8 @@ here. The format follows
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-22
+
 ### Changed
 - The mod is now marked `cosmetic`: in the game it only switches the base
   game's own per-stop **Force Unload All Cargo On Arrival** checkbox, which
