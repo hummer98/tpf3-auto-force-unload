@@ -2,11 +2,11 @@
 
 [日本語は下にあります](#日本語)
 
-Turns on **Force Unload All Cargo On Arrival** at the line stops where a
-cargo line only unloads, so the cargo is unloaded there even when the stock
-is full, instead of riding back to where it was loaded. Stops that load cargo
-keep it off. A small icon in the Line Manager's stop list shows where it is
-on.
+**What this mod does:** it switches the base game's **Force Unload All
+Cargo On Arrival** checkbox for you, stop by stop: on at stops where a cargo
+line only unloads, off at stops that load cargo. A small icon in the Line
+Manager's stop list shows where it is on. What the checkbox itself does is
+the base game's behaviour, summarised [below](#what-the-checkbox-does-base-game).
 
 ## Features
 
@@ -44,10 +44,20 @@ It does not act:
 - on lines made or changed without the Line Manager (by other mods' scripts,
   for example).
 
-Note: with force unload on, cargo is unloaded into a full stock and
-destroyed. That also happens at a stop along the way that loads no cargo,
-for cargo that could have gone on to a later stop on the same line. Turn the
-checkbox off there by hand (the line then counts as hand configured).
+## What the checkbox does (base game)
+
+This is the base game's behaviour, not something the mod adds. Measured in
+build 40444 (2026-11-18, one cargo line into an industry):
+
+- **On:** all cargo is unloaded on arrival. What fits into the receiving
+  stock is accepted and paid for. When the stock is full, the rest is
+  destroyed, and **no fare is paid** for the destroyed cargo.
+- **Off:** cargo that is not accepted stays aboard and rides on to the next
+  stop (on a two-stop line, back to where it was loaded).
+- So at a stop along the way that loads no cargo, the mod's "on" also
+  destroys cargo that could have gone on to a later stop of the same line.
+  Turn the checkbox off there by hand (the line then counts as hand
+  configured).
 
 ## The marker
 
@@ -159,7 +169,7 @@ when `VERSION`, the revision and the changelog disagree.
 
 **降ろすだけの駅に積み下ろし強制を自動設定（Transport Fever 3）**
 
-貨物の路線で、積み下ろすだけの停留所の「**到着時にすべての貨物を強制的に積み下ろし**」をオンにします。在庫が満タンでも貨物をそこで下ろすので、積んだ場所まで貨物が戻ってこなくなります。貨物を積む停留所ではオフのままです。オンの停留所は、路線マネージャーの停留所一覧に小さなアイコンで示します。
+**この MOD がすること:** 本体のチェックボックス「**到着時にすべての貨物を強制的に積み下ろし**」を、停留所ごとに自動で切り替えます。貨物を降ろすだけの停留所ではオン、貨物を積む停留所ではオフです。オンの停留所は、路線マネージャーの停留所一覧に小さなアイコンで示します。チェックボックスそのものの働きは本体の仕様で、[下](#チェックボックスの働き本体の仕様)にまとめました。
 
 ### 機能
 
@@ -186,7 +196,13 @@ when `VERSION`, the revision and the changelog disagree.
 - 停留所を別の駅へ動かしただけのとき。
 - 路線マネージャーを通さずに作られた・変えられた路線（他の MOD のスクリプトなど）。
 
-注意: オンの停留所では、在庫が満タンでも貨物を下ろして破棄します。貨物を積まない途中の停留所でも同じで、同じ路線の先の停留所へ運べたはずの貨物も消えます。そういう停留所では手でオフにしてください（その路線は手で設定した路線になります）。
+### チェックボックスの働き（本体の仕様）
+
+ここに書くのは本体の動きで、この MOD が足したものではありません。build 40444 で測りました（2026-11-18、産業へ届ける貨物の路線 1 本）。
+
+- **オン:** 到着した貨物を全部下ろします。届け先の在庫に入る分は受け取られ、運賃が入ります。在庫が満タンなら残りは破棄され、**破棄された分の運賃は入りません**。
+- **オフ:** 受け取られない貨物は車両に載ったまま、次の停留所へ運ばれます（停留所が 2 つの路線なら、積んだ場所へ戻ります）。
+- そのため、貨物を積まない途中の停留所でこの MOD がオンにすると、同じ路線の先の停留所へ運べたはずの貨物も破棄されます。そういう停留所では手でオフにしてください（その路線は手で設定した路線になります）。
 
 ### 目印
 

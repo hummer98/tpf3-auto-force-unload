@@ -8,6 +8,12 @@ here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The descriptions (My Mods, mod settings in English and Japanese, mod.io,
+  README) now separate what the mod does from what the base game's
+  checkbox does, and state the measured base-game behaviour: cargo
+  destroyed at a full stock earns no fare.
+
 ## [1.0.2] - 2026-11-22
 
 ### Changed
