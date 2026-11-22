@@ -96,12 +96,17 @@ test("modeFromParams: 1-based values, default when unknown or unreadable", funct
 	eq(core.DEFAULT_MODE, core.MODE_ALL)
 end)
 
+test("mod.json: marked cosmetic (it only sets the base game's own per-stop checkbox)", function()
+	local f = assert(io.open(root .. "/mod.json"))
+	local s = f:read("*a"); f:close()
+	assert(s:find('"cosmetic": true', 1, true), "cosmetic true expected")
+end)
+
 test("mod.json: mode param default is the first value (\"all stops\")", function()
 	local f = assert(io.open(root .. "/mod.json"))
 	local s = f:read("*a"); f:close()
 	assert(s:find('"key": "mode"', 1, true), "mode param missing")
 	assert(s:find('"defaultIndex": 0', 1, true), "defaultIndex 0 expected")
-	assert(s:find('"cosmetic": false', 1, true), "cosmetic false expected")
 	local all = s:find("hummer_force_unload_default_mode_all", 1, true)
 	local new = s:find("hummer_force_unload_default_mode_new", 1, true)
 	assert(all and new and all < new, "values order: all, new")

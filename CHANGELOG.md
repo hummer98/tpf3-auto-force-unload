@@ -8,6 +8,12 @@ here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The mod is now marked `cosmetic`: in the game it only switches the base
+  game's own per-stop **Force Unload All Cargo On Arrival** checkbox, which
+  players can also tick by hand, and adds no game rule. Metadata only; the
+  behaviour is unchanged.
+
 ## [1.0.1] - 2026-11-22
 
 ### Fixed

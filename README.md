@@ -65,8 +65,9 @@ the stop list** switches it off.
   (`severityAdd: None`, `severityRemove: None`). The mod stores nothing of
   its own in the save: what it sets is the base game's `forceUnload` flag of
   each stop, which stays as it is after the mod is removed.
-- Not `cosmetic`: it changes how cargo is unloaded, so the game treats it as
-  a gameplay mod.
+- `cosmetic`: what it changes in the game is only the base game's own
+  per-stop checkbox, the one you can tick by hand in the Line Manager (plus
+  a stop-list icon and its own settings); it adds no game rule.
 - No base file is replaced. It wraps the base functions
   `line_util.autoLoadConfig`, `line_util.makeNewStop` and
   `line_react_util.LineCargoDisplay` at GUI start and calls the previous
@@ -194,7 +195,7 @@ when `VERSION`, the revision and the changelog disagree.
 ### 互換性
 
 - プレイ中のセーブに追加しても、外しても問題ありません（`severityAdd: None`、`severityRemove: None`）。この MOD は自分のデータをセーブに残しません。設定するのは本体の各停留所の `forceUnload` で、MOD を外してもそのまま残ります。
-- `cosmetic` ではありません。貨物の積み下ろし方を変えるので、ゲームはゲームプレイに関わる MOD として扱います。
+- `cosmetic` です。ゲームの中で変えるのは、路線マネージャーで手でも付けられる本体の停留所ごとのチェックボックスだけです（ほかは停留所一覧のアイコンとこの MOD の設定）。ゲームのルールは足しません。
 - 本体のファイルは置き換えません。GUI の起動時に本体の `line_util.autoLoadConfig`・`line_util.makeNewStop`・`line_react_util.LineCargoDisplay` を包み、先に元の関数を呼びます。同じ関数を包む他の MOD もそのまま動きます。
 - 依存する MOD はありません。
 - 似た MOD: Line Toolkit（mod.io 6414310）は、貨物が戻ってきてから路線ごとに積み下ろし強制をオンにします。この MOD は、路線を作るときに、停留所が積む貨物から停留所ごとに決めます。
