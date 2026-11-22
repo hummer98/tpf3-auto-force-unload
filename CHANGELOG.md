@@ -8,6 +8,8 @@ here. The format follows
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-11-22
+
 ### Changed
 - The descriptions (My Mods, mod settings in English and Japanese, mod.io,
   README) now separate what the mod does from what the base game's
